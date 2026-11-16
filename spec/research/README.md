@@ -1,7 +1,7 @@
-# Research Knowledge Base
+# Data Engine Research Index
 
-This directory stores exploratory research, architectural evaluations, and trade-off analyses that inform the Product Requirements Documents in [../prds/README.md](../prds/README.md).
+This directory contains exploratory research, architectural evaluations, benchmark datasets, and technology trade-off analyses that inform the PRDs in [spec/prds/](../prds/README.md).
 
-## Research Documents Index
-
-- [Autonomous Semantic Layer, Zero-Copy Sandbox & Bidirectional MFE Canvas Architecture](./autonomous-semantic-layer-and-sandbox-research.md)
+## Research Documents
+- [Autonomous Semantic Layer, Sandboxed Compute & Shared Canvas MFE Research](./autonomous-semantic-layer-and-sandbox-research.md)
+- [Validation Datasets, Benchmarks & Chaos Testing Research](./validation-datasets-and-benchmark-strategy.md)
