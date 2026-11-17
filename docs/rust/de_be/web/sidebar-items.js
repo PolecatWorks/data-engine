@@ -1,1 +1,1 @@
-window.SIDEBAR_ITEMS = {"fn":["build_router","health_handler","join_probe_handler","profile_handler","seed_handler"],"struct":["AppState","HealthResponse","JoinProbeRequest","ProfileRequest","SeedRequest"]};
+window.SIDEBAR_ITEMS = {"fn":["benchmark_run_handler","build_router","health_handler","join_probe_handler","profile_handler","provenance_read_handler","query_execute_handler","query_validate_handler","seed_handler"],"struct":["AppState","HealthResponse","JoinProbeRequest","ProfileRequest","SeedRequest"]};

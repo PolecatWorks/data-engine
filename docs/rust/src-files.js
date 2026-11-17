@@ -1,2 +1,2 @@
-createSrcSidebar('[["de_be",["",[],["cli.rs","config.rs","error.rs","join_probe.rs","main.rs","profiler.rs","seeder.rs","web.rs"]]]]');
-//{"start":19,"fragment_lengths":[112]}
+createSrcSidebar('[["de_be",["",[],["benchmark.rs","cli.rs","config.rs","error.rs","join_probe.rs","main.rs","profiler.rs","provenance.rs","query_engine.rs","seeder.rs","web.rs"]]]]');
+//{"start":19,"fragment_lengths":[161]}

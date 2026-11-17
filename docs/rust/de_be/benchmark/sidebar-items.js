@@ -1,0 +1,1 @@
+window.SIDEBAR_ITEMS = {"enum":["BenchmarkError"],"fn":["run_ablation_benchmark","summarize_mode"],"struct":["AblationScorecard","ModeEvaluationSummary","TrapCaseResult"]};

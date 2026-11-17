@@ -1,0 +1,1 @@
+window.SIDEBAR_ITEMS = {"enum":["QueryEngineError"],"fn":["default_cardinality","default_one","default_true","default_verified","execute_query_plan","read_key_and_metric_columns","validate_query_plan"],"struct":["QueryExecutionResult","QueryValidationResult","SemanticQueryPlan","SemanticRuleBinding"]};
