@@ -14,3 +14,8 @@ This directory contains the detailed technical specifications and Test-Driven De
 * [03. Arrow Statistical Profiler & Temporal Drift Detector](./03-arrow-profiler-and-drift-detector-spec.md) - `complete`
 * [04. Empirical Join Prober & Fan-Out Detector](./04-empirical-join-probe-spec.md) - `complete`
 * [05. Multi-Arch CI/CD Workflows, Helm Chart, Dockerfile & Garden Pipeline (`sward-warden` Pattern)](./05-sward-warden-ci-workflows-spec.md) - `complete`
+
+## Increment 3: Query Plan Validator, Cryptographic Provenance & 3-Mode Epistemic Ablation Runner
+
+* [05. Semantic Query Plan Validator, Safe Aggregation Executor & Cryptographic Provenance (`POST /api/v1/queries/validate`, `POST /api/v1/queries/execute`)](./05-query-validator-and-provenance-spec.md) - `complete`
+* [06. 3-Mode Epistemic Ablation Benchmark Runner (`Mode A` vs `Mode B` vs `Mode C`, `POST /api/v1/benchmarks/run`)](./06-ablation-benchmark-runner-spec.md) - `complete`

@@ -1,8 +1,11 @@
+pub mod benchmark;
 pub mod cli;
 pub mod config;
 pub mod error;
 pub mod join_probe;
 pub mod profiler;
+pub mod provenance;
+pub mod query_engine;
 pub mod seeder;
 pub mod web;
 
@@ -14,11 +17,13 @@ use tokio::net::TcpListener;
 use tracing::info;
 use tracing_subscriber::EnvFilter;
 
+use crate::benchmark::run_ablation_benchmark;
 use crate::cli::{Cli, Commands};
 use crate::config::AppConfig;
 use crate::error::AppError;
 use crate::join_probe::probe_join;
 use crate::profiler::{DatasetProfile, profile_parquet_dataset};
+use crate::provenance::ProvenanceStore;
 use crate::seeder::seed_validation_suite;
 use crate::web::{AppState, build_router};
 
@@ -85,11 +90,29 @@ async fn main() -> Result<(), AppError> {
             println!("{}", out);
             Ok(())
         }
+        Commands::RunAblationBenchmark(args) => {
+            let seed = args.seed.unwrap_or(config.seeder.default_seed);
+            let row_count = args.row_count.unwrap_or(config.seeder.default_row_count);
+            let provenance_store = ProvenanceStore::default();
+            let scorecard = run_ablation_benchmark(
+                seed,
+                row_count,
+                &args.output_dir,
+                &config.profiler,
+                &config.compute,
+                &provenance_store,
+            )?;
+            let out = serde_json::to_string_pretty(&scorecard)
+                .map_err(crate::seeder::SeederError::from)?;
+            println!("{}", out);
+            Ok(())
+        }
         Commands::Start => {
             let bind_addr = format!("{}:{}", config.service.host, config.service.port);
             info!(%bind_addr, "Starting data-engine backend HTTP service");
             let state = AppState {
                 config: Arc::new(config),
+                provenance_store: ProvenanceStore::default(),
             };
             let router = build_router(state);
             let listener = TcpListener::bind(&bind_addr).await?;

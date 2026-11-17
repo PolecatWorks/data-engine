@@ -125,5 +125,7 @@ squash-gh-pages:
 	git push -f origin gh-pages; \
 	echo "Done."
 
+run-ablation-benchmark:
+	cargo run --manifest-path de-be-container/Cargo.toml -- -c de-be-container/config/default.yaml run-ablation-benchmark --output-dir /tmp/de-ablation-suite
 clean:
 	cargo clean --manifest-path de-be-container/Cargo.toml
