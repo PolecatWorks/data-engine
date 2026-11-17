@@ -47,6 +47,16 @@ pub enum SeederConfigError {
     RowCountTooSmall,
 }
 
+#[derive(Debug, Error, PartialEq)]
+pub enum SandboxConfigError {
+    #[error("sandbox.python_binary must not be empty")]
+    EmptyPythonBinary,
+    #[error("sandbox.timeout_ms must be greater than 0")]
+    ZeroTimeout,
+    #[error("sandbox.max_code_bytes must be greater than 0")]
+    ZeroMaxCodeBytes,
+}
+
 #[derive(Debug, Error)]
 pub enum ConfigError {
     #[error("failed to load configuration: {0}")]
@@ -63,6 +73,9 @@ pub enum ConfigError {
 
     #[error(transparent)]
     Seeder(#[from] SeederConfigError),
+
+    #[error(transparent)]
+    Sandbox(#[from] SandboxConfigError),
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
@@ -159,11 +172,35 @@ impl SeederConfig {
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
+pub struct SandboxConfig {
+    pub python_binary: String,
+    pub timeout_ms: u64,
+    pub max_code_bytes: usize,
+    pub allowed_modules: Vec<String>,
+}
+
+impl SandboxConfig {
+    pub fn validate(&self) -> Result<(), SandboxConfigError> {
+        if self.python_binary.trim().is_empty() {
+            return Err(SandboxConfigError::EmptyPythonBinary);
+        }
+        if self.timeout_ms == 0 {
+            return Err(SandboxConfigError::ZeroTimeout);
+        }
+        if self.max_code_bytes == 0 {
+            return Err(SandboxConfigError::ZeroMaxCodeBytes);
+        }
+        Ok(())
+    }
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
 pub struct AppConfig {
     pub service: ServiceConfig,
     pub profiler: ProfilerConfig,
     pub compute: ComputeConfig,
     pub seeder: SeederConfig,
+    pub sandbox: SandboxConfig,
 }
 
 impl AppConfig {
@@ -182,6 +219,7 @@ impl AppConfig {
         self.profiler.validate()?;
         self.compute.validate()?;
         self.seeder.validate()?;
+        self.sandbox.validate()?;
         Ok(())
     }
 }
@@ -212,6 +250,14 @@ compute:
 seeder:
   default_seed: 42
   default_row_count: 200
+sandbox:
+  python_binary: "python3"
+  timeout_ms: 5000
+  max_code_bytes: 65536
+  allowed_modules:
+    - "math"
+    - "statistics"
+    - "json"
 "#
     }
 
@@ -226,6 +272,7 @@ seeder:
         assert_eq!(cfg.profiler.minhash_num_hashes, 64);
         assert_eq!(cfg.compute.join_inclusion_threshold, 0.80);
         assert_eq!(cfg.seeder.default_seed, 42);
+        assert_eq!(cfg.sandbox.python_binary, "python3");
     }
 
     #[test]
@@ -268,6 +315,13 @@ seeder:
         assert!(matches!(
             cfg.validate(),
             Err(ConfigError::Seeder(SeederConfigError::RowCountTooSmall))
+        ));
+
+        cfg.seeder.default_row_count = 100;
+        cfg.sandbox.timeout_ms = 0;
+        assert!(matches!(
+            cfg.validate(),
+            Err(ConfigError::Sandbox(SandboxConfigError::ZeroTimeout))
         ));
     }
 }

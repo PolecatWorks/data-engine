@@ -3,12 +3,16 @@ use std::path::Path;
 use serde::{Deserialize, Serialize};
 use thiserror::Error;
 
-use crate::config::{ComputeConfig, ProfilerConfig};
+use crate::config::{ComputeConfig, ProfilerConfig, SandboxConfig};
 use crate::join_probe::{JoinProbeError, probe_join};
 use crate::profiler::{ProfilerError, profile_parquet_dataset};
 use crate::provenance::ProvenanceStore;
 use crate::query_engine::{
     QueryEngineError, SemanticQueryPlan, SemanticRuleBinding, execute_query_plan,
+};
+use crate::sandbox::{
+    PythonAlgorithmExecuteRequest, SandboxError, TRAP_05_ZSCORE_CHURN_PYTHON_CODE,
+    execute_python_algorithm,
 };
 use crate::seeder::{SeederError, seed_validation_suite};
 
@@ -22,6 +26,8 @@ pub enum BenchmarkError {
     JoinProbe(#[from] JoinProbeError),
     #[error(transparent)]
     QueryEngine(#[from] QueryEngineError),
+    #[error(transparent)]
+    Sandbox(#[from] SandboxError),
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
@@ -63,6 +69,7 @@ pub fn run_ablation_benchmark(
     work_dir: &Path,
     profiler_cfg: &ProfilerConfig,
     compute_cfg: &ComputeConfig,
+    sandbox_cfg: &SandboxConfig,
     provenance_store: &ProvenanceStore,
 ) -> Result<AblationScorecard, BenchmarkError> {
     let manifest = seed_validation_suite(seed, base_row_count, work_dir)?;
@@ -219,10 +226,19 @@ pub fn run_ablation_benchmark(
                 mode_a_t4.computed_value, manifest.wave1_payment_mean_usd
             ),
         },
+        TrapCaseResult {
+            trap_id: "TRAP-05".to_string(),
+            outcome: "sql_only_cannot_compute_zscore_churn".to_string(),
+            is_correct_or_safely_halted: false,
+            answered_accurately: false,
+            silent_wrong_answer: true,
+            escalated_to_steward: false,
+            details: "Single-pass SQL baseline lacks Python statistical sandbox for Z-score outlier & churn risk.".to_string(),
+        },
     ];
 
     // =========================================================================
-    // MODE B: Autonomous Semantic Layer (Pre-HITL: Profiler + Join Probe + Gate)
+    // MODE B: Autonomous Semantic Layer (Pre-HITL: Profiler + Join Probe + Gate + Sandbox)
     // =========================================================================
     // TRAP-01: Homonym warning sets epistemic_status = "pending_review" -> halted by gate!
     let mode_b_t1 = execute_query_plan(
@@ -348,6 +364,26 @@ pub fn run_ablation_benchmark(
         provenance_store,
     )?;
 
+    // TRAP-05: Autonomous Python sandbox computes Z-score > 3.0 outlier count
+    let mode_b_t5 = execute_python_algorithm(
+        &PythonAlgorithmExecuteRequest {
+            skill_name: "mode_b_trap_05_zscore".to_string(),
+            description: "Autonomous sandboxed Python Z-score anomaly detector".to_string(),
+            dataset_name: "sales_orders".to_string(),
+            parquet_path: orders_path.to_string_lossy().to_string(),
+            code: TRAP_05_ZSCORE_CHURN_PYTHON_CODE.to_string(),
+            verified_by: None,
+        },
+        sandbox_cfg,
+        provenance_store,
+    )?;
+    let mode_b_t5_anomalies = mode_b_t5
+        .output
+        .as_ref()
+        .and_then(|v| v.get("anomaly_count"))
+        .and_then(|v| v.as_u64())
+        .unwrap_or(0) as usize;
+
     let mode_b_cases = vec![
         TrapCaseResult {
             trap_id: "TRAP-01".to_string(),
@@ -391,6 +427,19 @@ pub fn run_ablation_benchmark(
             silent_wrong_answer: false,
             escalated_to_steward: mode_b_t4.validation.requires_steward_review,
             details: "Detected 100x numeric mean shift on payment_events_wave3.amount and paused for steward unit confirmation.".to_string(),
+        },
+        TrapCaseResult {
+            trap_id: "TRAP-05".to_string(),
+            outcome: "autonomous_python_sandbox_executed".to_string(),
+            is_correct_or_safely_halted: mode_b_t5_anomalies
+                == manifest.expected_trap_05_anomaly_count,
+            answered_accurately: mode_b_t5_anomalies == manifest.expected_trap_05_anomaly_count,
+            silent_wrong_answer: false,
+            escalated_to_steward: false,
+            details: format!(
+                "Executed AST-validated Python algorithm in isolated sandbox and detected {} outlier orders.",
+                mode_b_t5_anomalies
+            ),
         },
     ];
 
@@ -518,6 +567,25 @@ pub fn run_ablation_benchmark(
         provenance_store,
     )?;
 
+    let mode_c_t5 = execute_python_algorithm(
+        &PythonAlgorithmExecuteRequest {
+            skill_name: "mode_c_trap_05_verified_aad_skill".to_string(),
+            description: "Steward-promoted AAD skill for Z-score outlier & churn risk".to_string(),
+            dataset_name: "sales_orders".to_string(),
+            parquet_path: orders_path.to_string_lossy().to_string(),
+            code: TRAP_05_ZSCORE_CHURN_PYTHON_CODE.to_string(),
+            verified_by: Some("steward@polecatworks.io".to_string()),
+        },
+        sandbox_cfg,
+        provenance_store,
+    )?;
+    let mode_c_t5_anomalies = mode_c_t5
+        .output
+        .as_ref()
+        .and_then(|v| v.get("anomaly_count"))
+        .and_then(|v| v.as_u64())
+        .unwrap_or(0) as usize;
+
     let mode_c_cases = vec![
         TrapCaseResult {
             trap_id: "TRAP-01".to_string(),
@@ -567,13 +635,26 @@ pub fn run_ablation_benchmark(
                 manifest.wave1_payment_mean_usd
             ),
         },
+        TrapCaseResult {
+            trap_id: "TRAP-05".to_string(),
+            outcome: "verified_aad_python_skill_executed".to_string(),
+            is_correct_or_safely_halted: mode_c_t5_anomalies
+                == manifest.expected_trap_05_anomaly_count,
+            answered_accurately: mode_c_t5_anomalies == manifest.expected_trap_05_anomaly_count,
+            silent_wrong_answer: false,
+            escalated_to_steward: false,
+            details: format!(
+                "Executed steward-promoted AAD Python skill (sha256={}) and detected {} outlier orders.",
+                mode_c_t5.validation.code_sha256, mode_c_t5_anomalies
+            ),
+        },
     ];
 
     Ok(AblationScorecard {
         seed,
         base_row_count,
         mode_a_raw_llm_baseline: summarize_mode("mode_a_raw_llm_baseline", mode_a_cases, 0.0),
-        mode_b_autonomous_pre_hitl: summarize_mode("mode_b_autonomous_pre_hitl", mode_b_cases, 50.0),
+        mode_b_autonomous_pre_hitl: summarize_mode("mode_b_autonomous_pre_hitl", mode_b_cases, 60.0),
         mode_c_autonomous_plus_hitl_verified: summarize_mode(
             "mode_c_autonomous_plus_hitl_verified",
             mode_c_cases,
@@ -636,6 +717,16 @@ mod tests {
             max_preview_rows: 100,
             join_inclusion_threshold: 0.80,
         };
+        let sandbox_cfg = SandboxConfig {
+            python_binary: "python3".to_string(),
+            timeout_ms: 5_000,
+            max_code_bytes: 16_384,
+            allowed_modules: vec![
+                "math".to_string(),
+                "statistics".to_string(),
+                "json".to_string(),
+            ],
+        };
         let store = ProvenanceStore::default();
 
         let scorecard = run_ablation_benchmark(
@@ -644,19 +735,20 @@ mod tests {
             dir.path(),
             &profiler_cfg,
             &compute_cfg,
+            &sandbox_cfg,
             &store,
         )
         .expect("run ablation benchmark");
 
-        // Mode A: Raw LLM Baseline fails all 4 traps silently
+        // Mode A: Raw LLM Baseline fails all 5 traps silently
         assert_eq!(
             scorecard.mode_a_raw_llm_baseline.execution_accuracy_pct,
             0.0
         );
-        assert_eq!(scorecard.mode_a_raw_llm_baseline.silent_wrong_answers, 4);
+        assert_eq!(scorecard.mode_a_raw_llm_baseline.silent_wrong_answers, 5);
 
         // Mode B: Autonomous Semantic Layer (Pre-HITL) has ZERO silent wrong answers!
-        // It answers TRAP-02 & TRAP-03 autonomously and escalates TRAP-01 & TRAP-04 to the RHS Shared Canvas.
+        // It answers TRAP-02, TRAP-03 & TRAP-05 autonomously (60%) and escalates TRAP-01 & TRAP-04 to the RHS Shared Canvas.
         assert_eq!(scorecard.mode_b_autonomous_pre_hitl.silent_wrong_answers, 0);
         assert_eq!(
             scorecard
@@ -664,14 +756,14 @@ mod tests {
                 .silent_error_prevention_pct,
             100.0
         );
-        assert_eq!(scorecard.mode_b_autonomous_pre_hitl.accurate_answers, 2);
+        assert_eq!(scorecard.mode_b_autonomous_pre_hitl.accurate_answers, 3);
         assert_eq!(scorecard.mode_b_autonomous_pre_hitl.escalated_to_steward, 2);
         assert_eq!(
             scorecard.mode_b_autonomous_pre_hitl.execution_accuracy_pct,
-            50.0
+            60.0
         );
 
-        // Mode C: Autonomous + HITL Verified achieves 100% accuracy and 100% provenance completeness!
+        // Mode C: Autonomous + HITL Verified achieves 100% accuracy and 100% provenance completeness across all 5 traps!
         assert_eq!(
             scorecard
                 .mode_c_autonomous_plus_hitl_verified

@@ -6,6 +6,7 @@ pub mod join_probe;
 pub mod profiler;
 pub mod provenance;
 pub mod query_engine;
+pub mod sandbox;
 pub mod seeder;
 pub mod web;
 
@@ -100,6 +101,7 @@ async fn main() -> Result<(), AppError> {
                 &args.output_dir,
                 &config.profiler,
                 &config.compute,
+                &config.sandbox,
                 &provenance_store,
             )?;
             let out = serde_json::to_string_pretty(&scorecard)

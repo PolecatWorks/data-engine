@@ -19,3 +19,8 @@ This directory contains the detailed technical specifications and Test-Driven De
 
 * [05. Semantic Query Plan Validator, Safe Aggregation Executor & Cryptographic Provenance (`POST /api/v1/queries/validate`, `POST /api/v1/queries/execute`)](./05-query-validator-and-provenance-spec.md) - `complete`
 * [06. 3-Mode Epistemic Ablation Benchmark Runner (`Mode A` vs `Mode B` vs `Mode C`, `POST /api/v1/benchmarks/run`)](./06-ablation-benchmark-runner-spec.md) - `complete`
+
+## Increment 4: Dynamic Python Algorithm Sandbox, `TRAP-05` Analytics & Skill Promotion
+
+* [07. Dynamic Python Algorithm Sandbox, `TRAP-05` Non-SQL Analytics & AAD Skill Promotion (`POST /api/v1/algorithms/validate`, `POST /api/v1/algorithms/execute`)](./07-python-sandbox-and-trap-05-spec.md) - `complete`
+

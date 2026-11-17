@@ -46,6 +46,7 @@ pub struct GroundTruthManifest {
     pub expected_fanout_multiplier: f64,
     pub wave1_payment_mean_usd: f64,
     pub wave3_payment_mean_cents: f64,
+    pub expected_trap_05_anomaly_count: usize,
     pub planted_traps: Vec<PlantedTrapSpec>,
 }
 
@@ -159,7 +160,11 @@ pub fn seed_validation_suite(
         let num_items = if ord_idx % 2 == 0 { 2 } else { 3 };
         let mut this_order_total = 0.0_f64;
         for i in 0..num_items {
-            let price = 40.0 + ((rng.next_usize(160) as f64) * 1.5);
+            let mut price = 40.0 + ((rng.next_usize(160) as f64) * 1.5);
+            // TRAP-05: Plant extreme high-value outlier orders on every 50th order (z_score > 3.0)
+            if ord_idx % 50 == 49 && i == 0 {
+                price += 2500.0;
+            }
             this_order_total += price;
             item_ids.push(format!("ITM-{:06}-{}", ord_idx + 1, i + 1));
             item_order_ids.push(oid.clone());
@@ -187,6 +192,18 @@ pub fn seed_validation_suite(
         order_totals.push(this_order_total);
         order_statuses.push(statuses[ord_idx % statuses.len()].to_string());
     }
+
+    let order_mean = order_totals.iter().sum::<f64>() / (order_totals.len() as f64);
+    let order_var = order_totals
+        .iter()
+        .map(|v| (v - order_mean).powi(2))
+        .sum::<f64>()
+        / (order_totals.len() as f64);
+    let order_std = order_var.sqrt();
+    let expected_trap_05_anomaly_count = order_totals
+        .iter()
+        .filter(|&&v| order_std > 0.0 && ((v - order_mean) / order_std) > 3.0)
+        .count();
 
     let orders_schema = Arc::new(Schema::new(vec![
         Field::new("order_id", DataType::Utf8, false),
@@ -380,6 +397,7 @@ pub fn seed_validation_suite(
         expected_fanout_multiplier,
         wave1_payment_mean_usd: (wave1_mean * 100.0).round() / 100.0,
         wave3_payment_mean_cents: (wave3_mean * 100.0).round() / 100.0,
+        expected_trap_05_anomaly_count,
         planted_traps: vec![
             PlantedTrapSpec {
                 trap_id: "TRAP-01".to_string(),
@@ -420,6 +438,16 @@ pub fn seed_validation_suite(
                 right_field: "amount".to_string(),
                 expected_action: "mark_drifted_and_require_unit_conversion".to_string(),
                 description: "Wave 3 renames user_id -> client_id and shifts amount from USD (~120.0) to integer cents (~12000.0, 100x scale shift).".to_string(),
+            },
+            PlantedTrapSpec {
+                trap_id: "TRAP-05".to_string(),
+                category: "non_sql_algorithmic_anomaly".to_string(),
+                left_dataset: "sales_orders".to_string(),
+                left_field: "order_total_usd".to_string(),
+                right_dataset: "sales_orders".to_string(),
+                right_field: "status".to_string(),
+                expected_action: "execute_sandboxed_python_algorithm_and_promote_aad_skill".to_string(),
+                description: "Detect outlier orders (z_score > 3.0) and composite churn risk via sandboxed Python algorithm.".to_string(),
             },
         ],
     };
