@@ -19,3 +19,12 @@ compute:
 seeder:
   default_seed: 42
   default_row_count: 200
+
+sandbox:
+  python_binary: "python3"
+  timeout_ms: 5000
+  max_code_bytes: 65536
+  allowed_modules:
+    - "math"
+    - "statistics"
+    - "json"
