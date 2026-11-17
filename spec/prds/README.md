@@ -1,23 +1,43 @@
-# Product Requirements Documents (PRDs) Registry
+# Data Engine PRDs Index
 
-This directory contains the long-term, persistent Product Requirements Documents (PRDs) defining the architecture, objectives, data models, and capabilities of **Data-Engine (`data-engine`)**.
+This directory contains the modular Product Requirements Documents (PRDs) defining the **Data Engine (`data-engine`)** architecture, capabilities, and cross-repository integration contracts.
 
-## Document Hierarchy & Structure
+---
 
-| Document | Description |
+## Architecture & Module Map
+
+```mermaid
+flowchart TD
+    ECO["00. Ecosystem Architecture & Journeys PRD\n(ecosystem-architecture-and-journeys-prd.md)"] --> A["01. Backend Foundations PRD\n(backend-foundations-prd.md)"]
+    A --> B["02. Data Connectors & Profiling PRD\n(data-connectors-profiling-prd.md)"]
+    B --> C["03. Compute, Sandbox & Provenance PRD\n(compute-sandbox-provenance-prd.md)"]
+    C --> D["04. MCP & REST API Contract PRD\n(data-engine-mcp-api-prd.md)"]
+    D --> E["05. MFE Frontend & Shared Canvas PRD\n(mfe-frontend-canvas-prd.md)"]
+    B & C & D & E --> F["06. CI/CD, Containers & Integration Tests PRD\n(ci-cd-container-integration-prd.md)"]
+    B & C & E & F --> G["07. Validation Datasets, Benchmark Harness & Chaos Seeding PRD\n(validation-datasets-and-benchmark-prd.md)"]
+```
+
+---
+
+## Modular PRDs
+
+| PRD Document | Scope & Responsibilities |
 | :--- | :--- |
-| [backend-foundations-prd.md](./backend-foundations-prd.md) | **Backend Foundations PRD**: Rust backend microservice (`de-be-container`), `clap` CLI, centralized `AppConfig` (`DE_BE__`), modular `thiserror` error hierarchy, configurable Tokio runtime with `tokio-metrics`, PostgreSQL + `pgvector` with reversible migrations, HaMS `:8079` health/metrics sidecar, and Pod-Direct Telemetry Resolution. |
-| [data-connectors-profiling-prd.md](./data-connectors-profiling-prd.md) | **Universal Connectors, Schema Profiling & Autonomous Semantic Discovery PRD**: Multi-source ingestion (S3/MinIO Parquet/CSV/JSONL/Iceberg, PostgreSQL/MySQL/DuckDB, MongoDB/OpenSearch NoSQL flattening), statistical column profiling, MinHash value-overlap sketching, empirical join-hypothesis probing, and epistemic synchronization with `Graphrag`. |
-| [compute-sandbox-provenance-prd.md](./compute-sandbox-provenance-prd.md) | **Federated Compute, Python Sandbox & Cryptographic Provenance PRD**: Apache DataFusion + `sqlparser-rs` AST/grain validation, fan-out trap detection, zero-copy Apache Arrow shared memory (`/dev/shm`), Rust-supervised isolated Python code sandbox (`NamespaceSandbox` & `SidecarSandbox`), and W3C PROV / OpenLineage provenance ledger. |
-| [data-engine-mcp-api-prd.md](./data-engine-mcp-api-prd.md) | **REST BREAD & Model Context Protocol (MCP) Service PRD**: Full REST BREAD APIs (`/sources`, `/datasets`, `/fields`, `/join-hypotheses`, `/queries`, `/algorithms`, `/provenance`) and stateless HTTP JSON-RPC 2.0 MCP server (`/mcp` & `/api/v1/mcp` via `rmcp` + `schemars`) for `agent-as-data` and `Angry-agent`. |
-| [mfe-frontend-canvas-prd.md](./mfe-frontend-canvas-prd.md) | **Angular Native Federation MFE & Bidirectional Shared Canvas PRD**: Frontend container (`de-fe-container`), `Mfe-shell` route federation (`./routes`), and bidirectional `MfeCanvasController` wrappers (`./DataAssetFormWrapper`, `./JoinHypothesisReviewWrapper`, `./AlgorithmSandboxWrapper`, `./ProvenanceLineageWrapper`) for live human + AI co-editing on the RHS of chat. |
-| [ci-cd-container-integration-prd.md](./ci-cd-container-integration-prd.md) | **GitHub CI, Multi-Arch Docker Publish & Ephemeral Integration Testing PRD**: Multi-stage `cargo-chef` + Nginx container builds, `charts/data-engine` Helm chart, Istio `VirtualService`, path-filtered PR checks, content-SHA multi-arch GHCR builds, and Garden ephemeral Kubernetes Robot Framework integration suites. |
+| **[00. Ecosystem Architecture & End-to-End Journeys](./ecosystem-architecture-and-journeys-prd.md)** | Master cross-repository architecture connecting `data-engine`, `Graphrag`, `agent-as-data`, `Angry-agent`, and `Mfe-shell` across Autonomous Semantic Discovery, HITL Stewardship, and Provenance Analytics. |
+| **[01. Backend Foundations & Configuration](./backend-foundations-prd.md)** | Rust workspace structure (`de-be-container`), `clap` derive CLI (`serve`, `migrate`, `profile`, `seed-validation-suite`), fail-fast `AppConfig` (`DE_BE__` prefix), `thiserror` domain error enums, HAMS health/metrics (`:8079`), and PostgreSQL reversible migrations. |
+| **[02. Data Connectors, Ingestion & Statistical Profiling](./data-connectors-profiling-prd.md)** | Pluggable `DataSourceConnector` traits for S3/MinIO (Parquet, CSV, JSONL, Iceberg), PostgreSQL, and NoSQL; Apache Arrow schema extraction; statistical profiling (nulls, cardinality, quantiles); and MinHash / HyperLogLog sketches for automated join-key discovery. |
+| **[03. Federated Compute, Code Sandbox & Provenance Engine](./compute-sandbox-provenance-prd.md)** | `Apache DataFusion` federated SQL execution, `sqlparser-rs` AST validation & pre-execution join cardinality/fan-out checks, isolated Python code sandbox (`bwrap`/nsjail + zero-copy Arrow IPC over `/dev/shm`), and W3C PROV / OpenLineage cryptographic provenance (`ProvenanceRun`). |
+| **[04. MCP Server & REST API Contract](./data-engine-mcp-api-prd.md)** | REST API (`/api/v1/...`), SSE streaming endpoints, and Model Context Protocol (`/mcp/sse`) tools consumed by `agent-as-data`, `Graphrag`, and `Angry-agent`. |
+| **[05. MFE Frontend & Live Shared Canvas](./mfe-frontend-canvas-prd.md)** | Angular 21 + `@angular-architects/native-federation` remote (`de-fe-container`), standalone workbench views, and embeddable RHS Shared Canvas wrappers implementing `MfeCanvasController` (`applyPatch`, `getState`, `getSchema`, `onStateChange`, `onSelectionChange`). |
+| **[06. CI/CD, Containerization & Integration Testing](./ci-cd-container-integration-prd.md)** | Multi-stage Dockerfiles (`de-be-container`, `de-fe-container`), Helm charts (`charts/de-be`, `charts/de-fe`), GitHub Actions path-filtered workflows, and Robot Framework integration test suites. |
+| **[07. Validation Datasets, Benchmark Harness & Chaos Seeding](./validation-datasets-and-benchmark-prd.md)** | Curated external datasets (**BIRD-SQL**, **Valentine**, **Olist E-Commerce**, **NYC TLC**, **TPC-H via `tpchgen-rs`**), the built-in 3-wave **Enterprise Chaos & Drift Seeder (`de-be seed-validation-suite`)**, 5 canonical semantic traps (`TRAP-01`..`TRAP-05`), and the quantitative ablation evaluation matrix. |
 
-## Related Directories
-- [Technical Specifications (Specs)](../specs/README.md) — Derived Test-Driven Development (TDD) implementation contracts.
-- [Research Knowledge Base](../research/README.md) — Exploratory technical evaluations and architectural trade-offs.
+---
 
-## Governance & Lifecycle Rules
-1. **Source of Truth**: PRD files in this directory define the permanent vision and requirements for `data-engine`.
-2. **Iterative Evolution**: As new features or capabilities are conceptualized, PRDs are updated first before deriving specs in `../specs/`.
-3. **User Confirmation Gate**: Per [AGENTS.md](../../AGENTS.md), always confirm with the user after updating PRDs before creating or modifying TDD spec files in `../specs/`.
+## Research Index
+- [spec/research/README.md](../research/README.md)
+  - [Autonomous Semantic Layer, Sandboxed Compute & Shared Canvas MFE Research](../research/autonomous-semantic-layer-and-sandbox-research.md)
+  - [Validation Datasets, Benchmarks & Chaos Testing Research](../research/validation-datasets-and-benchmark-strategy.md)
+
+## Build Specifications Index
+- [spec/specs/README.md](../specs/README.md)
