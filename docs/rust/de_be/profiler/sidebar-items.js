@@ -1,0 +1,1 @@
+window.SIDEBAR_ITEMS = {"enum":["ProfilerError"],"fn":["apply_drift_comparison","compute_minhash","fnv1a_hash","infer_dominant_prefix","infer_semantic_domain","profile_parquet_dataset"],"struct":["DatasetProfile","DriftFinding","FieldProfile","NumericStats"]};
