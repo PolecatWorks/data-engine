@@ -1,0 +1,6 @@
+/target/
+**/target/
+/test-data/
+**/*.rs.bk
+.DS_Store
+.env
