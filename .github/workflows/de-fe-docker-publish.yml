@@ -31,8 +31,17 @@ jobs:
     runs-on: ubuntu-latest
     outputs:
       fe: ${{ steps.filter.outputs.fe }}
+      fe_dir_exists: ${{ steps.check_dir.outputs.exists }}
     steps:
       - uses: actions/checkout@v4
+      - name: Check if frontend directory exists
+        id: check_dir
+        run: |
+          if [ -d "de-fe-container" ]; then
+            echo "exists=true" >> $GITHUB_OUTPUT
+          else
+            echo "exists=false" >> $GITHUB_OUTPUT
+          fi
       - uses: dorny/paths-filter@v3
         id: filter
         with:
@@ -44,7 +53,7 @@ jobs:
 
   check-image:
     needs: check-paths
-    if: needs.check-paths.outputs.fe == 'true'
+    if: needs.check-paths.outputs.fe == 'true' && needs.check-paths.outputs.fe_dir_exists == 'true'
     runs-on: ubuntu-latest
     outputs:
       exists: ${{ steps.check.outputs.exists }}
