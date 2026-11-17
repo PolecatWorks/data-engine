@@ -359,7 +359,7 @@ jobs:
     steps:
       - name: Check Status
         run: |
-          if [[ "${{ needs.check-paths.outputs.fe }}" == 'true' ]]; then
+          if [[ "${{ needs.check-paths.outputs.fe }}" == 'true' && "${{ needs.check-paths.outputs.fe_dir_exists }}" == 'true' ]]; then
             if [[ "${{ needs.check-image.outputs.exists }}" != 'true' && "${{ needs.merge.result }}" != 'success' ]]; then
                echo "Build/Merge failed!"
                exit 1
