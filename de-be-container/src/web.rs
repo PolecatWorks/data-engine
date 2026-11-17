@@ -14,6 +14,10 @@ use crate::join_probe::probe_join;
 use crate::profiler::{DatasetProfile, profile_parquet_dataset};
 use crate::provenance::ProvenanceStore;
 use crate::query_engine::{SemanticQueryPlan, execute_query_plan, validate_query_plan};
+use crate::sandbox::{
+    PythonAlgorithmExecuteRequest, PythonAlgorithmValidationRequest, execute_python_algorithm,
+    validate_python_algorithm,
+};
 use crate::seeder::seed_validation_suite;
 
 #[derive(Clone)]
@@ -61,6 +65,14 @@ pub fn build_router(state: AppState) -> Router {
         .route("/api/v1/joins/probe", post(join_probe_handler))
         .route("/api/v1/queries/validate", post(query_validate_handler))
         .route("/api/v1/queries/execute", post(query_execute_handler))
+        .route(
+            "/api/v1/algorithms/validate",
+            post(algorithm_validate_handler),
+        )
+        .route(
+            "/api/v1/algorithms/execute",
+            post(algorithm_execute_handler),
+        )
         .route("/api/v1/provenance/{id}", get(provenance_read_handler))
         .route("/api/v1/benchmarks/run", post(benchmark_run_handler))
         .with_state(state)
@@ -168,6 +180,38 @@ async fn query_execute_handler(
     }
 }
 
+async fn algorithm_validate_handler(
+    State(state): State<AppState>,
+    Json(req): Json<PythonAlgorithmValidationRequest>,
+) -> impl IntoResponse {
+    match validate_python_algorithm(&req, &state.config.sandbox) {
+        Ok(res) => (
+            StatusCode::OK,
+            Json(serde_json::to_value(res).unwrap_or_default()),
+        ),
+        Err(err) => (
+            StatusCode::BAD_REQUEST,
+            Json(serde_json::json!({ "error": err.to_string() })),
+        ),
+    }
+}
+
+async fn algorithm_execute_handler(
+    State(state): State<AppState>,
+    Json(req): Json<PythonAlgorithmExecuteRequest>,
+) -> impl IntoResponse {
+    match execute_python_algorithm(&req, &state.config.sandbox, &state.provenance_store) {
+        Ok(res) => (
+            StatusCode::OK,
+            Json(serde_json::to_value(res).unwrap_or_default()),
+        ),
+        Err(err) => (
+            StatusCode::BAD_REQUEST,
+            Json(serde_json::json!({ "error": err.to_string() })),
+        ),
+    }
+}
+
 async fn provenance_read_handler(
     State(state): State<AppState>,
     Path(id): Path<String>,
@@ -200,6 +244,7 @@ async fn benchmark_run_handler(
         &out_dir,
         &state.config.profiler,
         &state.config.compute,
+        &state.config.sandbox,
         &state.provenance_store,
     ) {
         Ok(scorecard) => (
@@ -216,7 +261,9 @@ async fn benchmark_run_handler(
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::config::{ComputeConfig, ProfilerConfig, SeederConfig, ServiceConfig};
+    use crate::config::{
+        ComputeConfig, ProfilerConfig, SandboxConfig, SeederConfig, ServiceConfig,
+    };
     use axum::body::Body;
     use axum::http::Request;
     use http_body_util::BodyExt;
@@ -247,6 +294,16 @@ mod tests {
                 seeder: SeederConfig {
                     default_seed: 42,
                     default_row_count: 80,
+                },
+                sandbox: SandboxConfig {
+                    python_binary: "python3".to_string(),
+                    timeout_ms: 5_000,
+                    max_code_bytes: 16_384,
+                    allowed_modules: vec![
+                        "math".to_string(),
+                        "statistics".to_string(),
+                        "json".to_string(),
+                    ],
                 },
             }),
             provenance_store: ProvenanceStore::default(),

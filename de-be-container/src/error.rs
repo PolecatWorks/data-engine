@@ -6,6 +6,7 @@ use crate::join_probe::JoinProbeError;
 use crate::profiler::ProfilerError;
 use crate::provenance::ProvenanceError;
 use crate::query_engine::QueryEngineError;
+use crate::sandbox::SandboxError;
 use crate::seeder::SeederError;
 
 #[derive(Debug, Error)]
@@ -27,6 +28,9 @@ pub enum AppError {
 
     #[error(transparent)]
     QueryEngine(#[from] QueryEngineError),
+
+    #[error(transparent)]
+    Sandbox(#[from] SandboxError),
 
     #[error(transparent)]
     Benchmark(#[from] BenchmarkError),
