@@ -13,3 +13,4 @@ This directory contains the detailed technical specifications and Test-Driven De
 * [02. Deterministic Chaos & Drift Seeder (`seed-validation-suite` & `TRAP-01..04`)](./02-chaos-seeder-and-tpch-spec.md) - `complete`
 * [03. Arrow Statistical Profiler & Temporal Drift Detector](./03-arrow-profiler-and-drift-detector-spec.md) - `complete`
 * [04. Empirical Join Prober & Fan-Out Detector](./04-empirical-join-probe-spec.md) - `complete`
+* [05. Multi-Arch CI/CD Workflows, Helm Chart, Dockerfile & Garden Pipeline (`sward-warden` Pattern)](./05-sward-warden-ci-workflows-spec.md) - `complete`

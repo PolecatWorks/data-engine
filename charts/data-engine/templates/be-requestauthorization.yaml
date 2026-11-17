@@ -1,0 +1,15 @@
+{{- if .Values.devsecops.RequestAuthentication.jwtRules }}
+---
+apiVersion: "security.istio.io/v1beta1"
+kind: RequestAuthentication
+metadata:
+  name: {{ include "data-engine.fullname" . }}-be
+  labels:
+    {{- include "data-engine.labels" . | nindent 4 }}
+spec:
+  selector:
+    matchLabels:
+      {{- include "data-engine.selectorLabels" . | nindent 6 }}
+  jwtRules:
+  {{- tpl (toYaml .Values.devsecops.RequestAuthentication.jwtRules) . | nindent 4 }}
+{{- end }}

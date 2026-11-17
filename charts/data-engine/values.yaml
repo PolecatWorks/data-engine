@@ -1,0 +1,56 @@
+imagePullSecrets: []
+replicaCount: 1
+containerPort: 8080
+lifecyclePort: 8079
+env: []
+livenessProbe:
+  httpGet:
+    path: /hams/alive
+    port: http-lifecycle
+  initialDelaySeconds: 15
+  periodSeconds: 20
+  timeoutSeconds: 5
+  failureThreshold: 3
+readinessProbe:
+  httpGet:
+    path: /hams/ready
+    port: http-lifecycle
+  initialDelaySeconds: 5
+  periodSeconds: 10
+  timeoutSeconds: 5
+  failureThreshold: 3
+lifecycle: {}
+initContainer:
+  env: []
+resources: {}
+image:
+  repository: data-engine-be
+  pullPolicy: Always
+  tag: latest
+service:
+  type: ClusterIP
+  port: 80
+volumeMounts: []
+volumes: []
+labels: {}
+podAnnotations: {}
+podLabels: {}
+securityContext: {}
+nodeSelector: {}
+affinity: {}
+tolerations: []
+serviceAccount:
+  annotations: {}
+  name: ""
+autoscaling:
+  enabled: false
+  minReplicas: 1
+  maxReplicas: 100
+  targetCPUUtilizationPercentage: 80
+  targetMemoryUtilizationPercentage: 80
+devsecops:
+  AuthorizationPolicy:
+    rules: []
+  RequestAuthentication:
+    jwtRules: []
+customPodSHA: ""
