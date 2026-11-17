@@ -1,0 +1,21 @@
+service:
+  name: "data-engine-be"
+  version: "0.1.0"
+  host: "0.0.0.0"
+  port: 8080
+  log_level: "info"
+
+profiler:
+  max_sample_rows: 100000
+  top_k_values: 10
+  minhash_num_hashes: 64
+  drift_relative_mean_threshold: 5.0
+
+compute:
+  query_timeout_secs: 30
+  max_preview_rows: 100
+  join_inclusion_threshold: 0.80
+
+seeder:
+  default_seed: 42
+  default_row_count: 200

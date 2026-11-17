@@ -1,13 +1,15 @@
-# Technical Specifications (TDD Specs) Registry
+# Specifications (`spec/specs/`)
 
-This directory holds Test-Driven Development (TDD) build specifications derived from the Product Requirements Documents in [../prds/README.md](../prds/README.md).
+This directory contains the detailed technical specifications and Test-Driven Development (TDD) contracts derived from the Product Requirements Documents (`spec/prds/`).
 
-## Spec Lifecycle Rules
-Per [AGENTS.md](../../AGENTS.md):
+## Spec Status Lifecycle
 - **`draft`**: Actively being authored or refined prior to implementation.
-- **`complete`**: Implemented and verified by unit tests (`make test`, `make test-fe`) and Robot Framework integration tests (`make test-robot`). Cannot be modified except to mark `deprecated`.
-- **`deprecated`**: Superseded by a newer spec; preserved for historical auditability.
+- **`complete`**: Marked once the spec features and tests are fully implemented and verified. Cannot be modified except to transition to `deprecated`.
+- **`deprecated`**: Marked when a historical spec is superseded.
 
-## Specifications Index
+## Increment 1: Minimal Core (`de-be-container` Scaffold, Chaos Seeder, Profiler & Join Probe)
 
-*(No specs created yet — awaiting user confirmation on Phase 1 PRDs in [../prds/README.md](../prds/README.md) before authoring TDD build specs.)*
+* [01. Backend Scaffold, Config Loader, Typed Errors & CLI (`de-be-container`)](./01-scaffold-and-config-spec.md) - `complete`
+* [02. Deterministic Chaos & Drift Seeder (`seed-validation-suite` & `TRAP-01..04`)](./02-chaos-seeder-and-tpch-spec.md) - `complete`
+* [03. Arrow Statistical Profiler & Temporal Drift Detector](./03-arrow-profiler-and-drift-detector-spec.md) - `complete`
+* [04. Empirical Join Prober & Fan-Out Detector](./04-empirical-join-probe-spec.md) - `complete`
