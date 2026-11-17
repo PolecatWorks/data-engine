@@ -1,0 +1,283 @@
+kind: Project
+apiVersion: garden.io/v2
+name: data-engine
+
+variables:
+  pr-number: ${local.env.PR_NUMBER || "local"}
+  kube-context: "${local.env.GARDEN_KUBECONTEXT || (local.env.CI == 'true' ? 'local' : 'kubernetes-admin@kubernetes')}"
+  dns-host: de-${local.env.USER || "local"}.dev.k8s
+
+providers:
+  - name: kubernetes
+    context: ${var.kube-context}
+    namespace: ${environment.namespace}
+    environments:
+      - pr
+      - local
+
+environments:
+  - name: local
+    defaultNamespace: data-engine-${local.env.USER}
+    variables:
+      dns-host: de-${local.env.USER}.dev.k8s
+  - name: pr
+    defaultNamespace: data-engine-pr-${var.pr-number}
+    variables:
+      dns-host: de-pr-${var.pr-number}.dev.k8s
+
+---
+kind: Deploy
+type: kubernetes
+name: postgres-test
+description: "Ephemeral database for integration tests"
+spec:
+  manifests:
+    - apiVersion: apps/v1
+      kind: Deployment
+      metadata:
+        name: postgres-test
+      spec:
+        replicas: 1
+        selector:
+          matchLabels:
+            app: postgres-test
+        template:
+          metadata:
+            labels:
+              app: postgres-test
+          spec:
+            nodeSelector:
+              kubernetes.io/arch: amd64
+            containers:
+              - name: postgres-test
+                image: pgvector/pgvector:pg16
+                env:
+                  - name: POSTGRES_DB
+                    value: data_engine
+                  - name: POSTGRES_USER
+                    value: mock-user
+                  - name: POSTGRES_PASSWORD
+                    value: mock-password
+                ports:
+                  - containerPort: 5432
+                    name: postgres
+    - apiVersion: v1
+      kind: Service
+      metadata:
+        name: postgres-test
+      spec:
+        ports:
+          - port: 5432
+            targetPort: 5432
+            name: postgres
+        selector:
+          app: postgres-test
+    - apiVersion: v1
+      kind: Secret
+      metadata:
+        name: de-be
+      type: Opaque
+      stringData:
+        database_username: mock-user
+        database_password: mock-password
+---
+kind: Deploy
+type: helm
+name: data-engine
+description: "Deploy the data-engine backend"
+timeout: 900
+dependencies:
+  - deploy.postgres-test
+  - deploy.ghcr-external-secret
+  - build.get-be-sha
+source:
+  path: charts/data-engine
+include:
+  - "**/*"
+spec:
+  timeout: 900
+  waitForUnhealthyResources: true
+  values:
+    imagePullSecrets:
+      - name: ghcr-secret
+    image:
+      repository: '${local.env.DE_BE_IMAGE != null ? local.env.DE_BE_IMAGE : actions.build.get-be-sha.outputs.image}'
+      tag: '${local.env.DE_BE_TAG != null ? local.env.DE_BE_TAG : actions.build.get-be-sha.outputs.tag}'
+      pullPolicy: '${local.env.DE_BE_IMAGE != null ? "IfNotPresent" : "Always"}'
+    resources:
+      requests:
+        cpu: 10m
+        memory: 128Mi
+      limits:
+        cpu: 200m
+        memory: 512Mi
+    volumes:
+      - name: config
+        configMap:
+          name: data-engine-be
+    volumeMounts:
+      - name: config
+        mountPath: /etc/de-be/config.yaml
+        subPath: config.yaml
+---
+kind: Deploy
+type: helm
+name: data-engine-fe
+description: "Deploy the data-engine frontend"
+timeout: 900
+dependencies:
+  - deploy.ghcr-external-secret
+  - build.get-fe-sha
+spec:
+  timeout: 900
+  waitForUnhealthyResources: true
+  chart:
+    name: oci://ghcr.io/polecatworks/mfe-shell/helm/nginx-view
+    version: "0.1.0-main-20260210211011-05bbdec"
+  values:
+    image:
+      repository: '${local.env.DE_FE_IMAGE != null ? local.env.DE_FE_IMAGE : actions.build.get-fe-sha.outputs.image}'
+      tag: '${local.env.DE_FE_TAG != null ? local.env.DE_FE_TAG : actions.build.get-fe-sha.outputs.tag}'
+      pullPolicy: '${local.env.DE_FE_IMAGE != null ? "IfNotPresent" : "Always"}'
+    imagePullSecrets:
+      - name: ghcr-secret
+    resources:
+      requests:
+        cpu: 10m
+        memory: 128Mi
+      limits:
+        cpu: 100m
+        memory: 256Mi
+    env:
+      - name: SERVE_ROOT
+        value: /
+---
+kind: Deploy
+type: kubernetes
+name: ghcr-external-secret
+description: "Creates GHCR image pull secret directly from GHCR_TOKEN environment variable"
+spec:
+  manifests:
+    - apiVersion: v1
+      kind: Secret
+      metadata:
+        name: ghcr-secret
+      type: kubernetes.io/dockerconfigjson
+      stringData:
+        .dockerconfigjson: |
+          {
+            "auths": {
+              "ghcr.io": {
+                "username": "${local.env.GHCR_USER || 'bengreen'}",
+                "password": "${local.env.GHCR_TOKEN || ''}",
+                "auth": "${base64Encode((local.env.GHCR_USER || 'bengreen') + ':' + (local.env.GHCR_TOKEN || ''))}"
+              }
+            }
+          }
+---
+kind: Deploy
+type: kubernetes
+name: virtual-service
+description: "VirtualService for routing ingress traffic to frontend and backend services"
+dependencies:
+  - deploy.data-engine
+  - deploy.data-engine-fe
+spec:
+  manifests:
+    - apiVersion: networking.istio.io/v1beta1
+      kind: VirtualService
+      metadata:
+        name: data-engine
+      spec:
+        hosts:
+          - ${var.dns-host}
+        gateways:
+          - istio-ingress/k8s-gateway
+          - mesh
+        http:
+          - name: data-engine-be
+            match:
+              - uri:
+                  prefix: /api
+            route:
+              - destination:
+                  host: data-engine-be
+          - name: data-engine-fe
+            match:
+              - uri:
+                  prefix: /
+            route:
+              - destination:
+                  host: data-engine-fe-nginx-view
+---
+kind: Build
+type: exec
+name: get-be-sha
+description: "Get git commit SHA and image repo for backend files"
+buildAtSource: true
+spec:
+  command:
+    - "/bin/bash"
+    - "-c"
+    - |
+      BACKEND_SHA=$(git log -1 --format=%H -- de-be-container/ .github/workflows/de-be-docker-publish.yml)
+      MAIN_SHA=$(git log -1 --format=%H origin/main -- de-be-container/ .github/workflows/de-be-docker-publish.yml 2>/dev/null || echo "")
+      HAS_UNCOMMITTED=$(git status --porcelain -- de-be-container/ .github/workflows/de-be-docker-publish.yml)
+      if [ -n "$HAS_UNCOMMITTED" ] || [ "$BACKEND_SHA" != "$MAIN_SHA" ]; then
+        IMAGE="ghcr.io/polecatworks/data-engine-be"
+        TAG="sha-$BACKEND_SHA"
+      else
+        IMAGE="ghcr.io/polecatworks/data-engine-be"
+        TAG="main"
+      fi
+      if [ -n "$GARDEN_ACTION_OUTPUTS_JSON_PATH" ]; then
+        echo "{\"image\": \"$IMAGE\", \"tag\": \"$TAG\"}" > "$GARDEN_ACTION_OUTPUTS_JSON_PATH"
+      elif [ -n "$GARDEN_ACTION_JSON_OUTPUTS_PATH" ]; then
+        echo "{\"image\": \"$IMAGE\", \"tag\": \"$TAG\"}" > "$GARDEN_ACTION_JSON_OUTPUTS_PATH"
+      else
+        echo "Outputs path not defined by Garden, skipping writing outputs file"
+      fi
+---
+kind: Build
+type: exec
+name: get-fe-sha
+description: "Get git commit SHA and image repo for frontend files"
+buildAtSource: true
+spec:
+  command:
+    - "/bin/bash"
+    - "-c"
+    - |
+      FRONTEND_SHA=$(git log -1 --format=%H -- de-fe-container/ .github/workflows/de-fe-docker-publish.yml)
+      MAIN_SHA=$(git log -1 --format=%H origin/main -- de-fe-container/ .github/workflows/de-fe-docker-publish.yml 2>/dev/null || echo "")
+      HAS_UNCOMMITTED=$(git status --porcelain -- de-fe-container/ .github/workflows/de-fe-docker-publish.yml)
+      if [ -n "$HAS_UNCOMMITTED" ] || [ "$FRONTEND_SHA" != "$MAIN_SHA" ]; then
+        IMAGE="ghcr.io/polecatworks/data-engine-fe"
+        TAG="sha-$FRONTEND_SHA"
+      else
+        IMAGE="ghcr.io/polecatworks/data-engine-fe"
+        TAG="main"
+      fi
+      if [ -n "$GARDEN_ACTION_OUTPUTS_JSON_PATH" ]; then
+        echo "{\"image\": \"$IMAGE\", \"tag\": \"$TAG\"}" > "$GARDEN_ACTION_OUTPUTS_JSON_PATH"
+      elif [ -n "$GARDEN_ACTION_JSON_OUTPUTS_PATH" ]; then
+        echo "{\"image\": \"$IMAGE\", \"tag\": \"$TAG\"}" > "$GARDEN_ACTION_JSON_OUTPUTS_PATH"
+      else
+        echo "Outputs path not defined by Garden, skipping writing outputs file"
+      fi
+---
+kind: Deploy
+type: kubernetes
+name: telemetry
+description: "Telemetry configuration for Istio access logging"
+spec:
+  manifests:
+    - apiVersion: telemetry.istio.io/v1alpha1
+      kind: Telemetry
+      metadata:
+        name: ns-default
+        namespace: ${environment.namespace}
+      spec:
+        accessLogging:
+          - providers:
+              - name: envoy

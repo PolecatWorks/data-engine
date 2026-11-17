@@ -3,7 +3,8 @@
 [![Rust](https://img.shields.io/badge/rust-1.85%2B-blue.svg)](https://www.rust-lang.org)
 [![Angular](https://img.shields.io/badge/angular-21%2B-dd0031.svg)](https://angular.dev)
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
-[![Build Status](https://github.com/PolecatWorks/data-engine/actions/workflows/ci.yml/badge.svg)](https://github.com/PolecatWorks/data-engine/actions)
+[![BE Docker CI](https://github.com/PolecatWorks/data-engine/actions/workflows/de-be-docker-publish.yml/badge.svg)](https://github.com/PolecatWorks/data-engine/actions/workflows/de-be-docker-publish.yml)
+[![FE Docker CI](https://github.com/PolecatWorks/data-engine/actions/workflows/de-fe-docker-publish.yml/badge.svg)](https://github.com/PolecatWorks/data-engine/actions/workflows/de-fe-docker-publish.yml)
 
 **Data-Engine** is the universal data ingestion, schema & statistical profiling, federated calculation (`Apache DataFusion` + `Apache Arrow`), Rust-supervised Python code sandbox, and cryptographic provenance platform for the PolecatWorks AI ecosystem. It pairs a high-performance Rust backend (`de-be-container`) with an interactive Native Federation Angular Micro-Frontend (`de-fe-container`) designed to run both standalone, inside [`Mfe-shell`](https://github.com/PolecatWorks/Mfe-shell), and as a live bidirectional co-editing canvas inside [`Angry-agent`](https://github.com/PolecatWorks/Angry-agent).
 
