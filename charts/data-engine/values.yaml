@@ -1,20 +1,20 @@
 imagePullSecrets: []
 replicaCount: 1
 containerPort: 8080
-lifecyclePort: 8079
+lifecyclePort: 8080
 env: []
 livenessProbe:
   httpGet:
-    path: /hams/alive
-    port: http-lifecycle
-  initialDelaySeconds: 15
-  periodSeconds: 20
+    path: /api/v1/health
+    port: http-web
+  initialDelaySeconds: 5
+  periodSeconds: 10
   timeoutSeconds: 5
   failureThreshold: 3
 readinessProbe:
   httpGet:
-    path: /hams/ready
-    port: http-lifecycle
+    path: /api/v1/health
+    port: http-web
   initialDelaySeconds: 5
   periodSeconds: 10
   timeoutSeconds: 5

@@ -3,7 +3,6 @@ type: kubernetes
 name: robot-test-runner
 dependencies:
   - deploy.data-engine
-  - deploy.data-engine-fe
   - deploy.virtual-service
 spec:
   manifests:

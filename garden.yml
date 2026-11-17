@@ -6,6 +6,7 @@ variables:
   pr-number: ${local.env.PR_NUMBER || "local"}
   kube-context: "${local.env.GARDEN_KUBECONTEXT || (local.env.CI == 'true' ? 'local' : 'kubernetes-admin@kubernetes')}"
   dns-host: de-${local.env.USER || "local"}.dev.k8s
+  fe-enabled: ${local.env.DE_FE_ENABLED || "false"}
 
 providers:
   - name: kubernetes
@@ -124,6 +125,7 @@ kind: Deploy
 type: helm
 name: data-engine-fe
 description: "Deploy the data-engine frontend"
+disabled: ${var.fe-enabled != "true"}
 timeout: 900
 dependencies:
   - deploy.ghcr-external-secret
@@ -178,10 +180,9 @@ spec:
 kind: Deploy
 type: kubernetes
 name: virtual-service
-description: "VirtualService for routing ingress traffic to frontend and backend services"
+description: "VirtualService for routing ingress traffic to backend services"
 dependencies:
   - deploy.data-engine
-  - deploy.data-engine-fe
 spec:
   manifests:
     - apiVersion: networking.istio.io/v1beta1
@@ -202,13 +203,6 @@ spec:
             route:
               - destination:
                   host: data-engine-be
-          - name: data-engine-fe
-            match:
-              - uri:
-                  prefix: /
-            route:
-              - destination:
-                  host: data-engine-fe-nginx-view
 ---
 kind: Build
 type: exec
@@ -242,6 +236,7 @@ kind: Build
 type: exec
 name: get-fe-sha
 description: "Get git commit SHA and image repo for frontend files"
+disabled: ${var.fe-enabled != "true"}
 buildAtSource: true
 spec:
   command:
