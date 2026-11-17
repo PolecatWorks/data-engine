@@ -28,6 +28,8 @@ pub enum Commands {
     Profile(ProfileArgs),
     /// Run an empirical join probe across two Parquet datasets
     JoinProbe(JoinProbeArgs),
+    /// Execute the 3-Mode Epistemic Ablation Benchmark (Mode A vs Mode B vs Mode C)
+    RunAblationBenchmark(SeedValidationSuiteArgs),
 }
 
 #[derive(Debug, Args, PartialEq)]

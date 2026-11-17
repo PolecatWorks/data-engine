@@ -214,6 +214,14 @@ jobs:
           NAMESPACE="data-engine-pr-${{ env.PR_NUMBER }}"
           # Wipe the namespace clean to prevent stale/broken StatefulSets from blocking the run
           kubectl delete namespace $NAMESPACE --ignore-not-found
+          # Wait for any previous terminating namespace to cleanly finish terminating
+          for i in {1..60}; do
+            if ! kubectl get namespace $NAMESPACE >/dev/null 2>&1; then
+              break
+            fi
+            echo "Waiting for namespace $NAMESPACE to terminate... ($i/60)"
+            sleep 3
+          done
           # Ensure namespace exists
           kubectl create namespace $NAMESPACE --dry-run=client -o yaml | kubectl apply -f -
           kubectl label namespace $NAMESPACE istio-injection=enabled --overwrite
@@ -251,17 +259,21 @@ jobs:
           fi
 
           echo "Waiting for frontend image $DE_FE_IMAGE:$DE_FE_TAG..."
-          for i in {1..60}; do
-            if docker manifest inspect "$DE_FE_IMAGE:$DE_FE_TAG" >/dev/null 2>&1; then
-              echo "Frontend image is available!"
-              break
+          if [ -d "de-fe-container" ]; then
+            for i in {1..60}; do
+              if docker manifest inspect "$DE_FE_IMAGE:$DE_FE_TAG" >/dev/null 2>&1; then
+                echo "Frontend image is available!"
+                break
+              fi
+              echo "Frontend image not available yet. Waiting 10s... ($i/60)"
+              sleep 10
+            done
+            if ! docker manifest inspect "$DE_FE_IMAGE:$DE_FE_TAG" >/dev/null 2>&1; then
+              echo "Error: Frontend image $DE_FE_IMAGE:$DE_FE_TAG was not built/pushed in time."
+              exit 1
             fi
-            echo "Frontend image not available yet. Waiting 10s... ($i/60)"
-            sleep 10
-          done
-          if ! docker manifest inspect "$DE_FE_IMAGE:$DE_FE_TAG" >/dev/null 2>&1; then
-            echo "Error: Frontend image $DE_FE_IMAGE:$DE_FE_TAG was not built/pushed in time."
-            exit 1
+          else
+            echo "de-fe-container does not exist in repository; skipping frontend image wait."
           fi
 
       - name: Run Integration Tests with Garden

@@ -4,3 +4,6 @@
 **/*.rs.bk
 .DS_Store
 .env
+.garden/
+.tokensave/
+integration-tests/reports/

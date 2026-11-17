@@ -1,21 +1,25 @@
 use std::path::PathBuf;
 use std::sync::Arc;
 
-use axum::extract::State;
+use axum::extract::{Path, State};
 use axum::http::StatusCode;
 use axum::response::IntoResponse;
 use axum::routing::{get, post};
 use axum::{Json, Router};
 use serde::{Deserialize, Serialize};
 
+use crate::benchmark::run_ablation_benchmark;
 use crate::config::AppConfig;
 use crate::join_probe::probe_join;
 use crate::profiler::{DatasetProfile, profile_parquet_dataset};
+use crate::provenance::ProvenanceStore;
+use crate::query_engine::{SemanticQueryPlan, execute_query_plan, validate_query_plan};
 use crate::seeder::seed_validation_suite;
 
 #[derive(Clone)]
 pub struct AppState {
     pub config: Arc<AppConfig>,
+    pub provenance_store: ProvenanceStore,
 }
 
 #[derive(Debug, Serialize, Deserialize, PartialEq)]
@@ -55,6 +59,10 @@ pub fn build_router(state: AppState) -> Router {
         .route("/api/v1/datasets/seed", post(seed_handler))
         .route("/api/v1/datasets/profile", post(profile_handler))
         .route("/api/v1/joins/probe", post(join_probe_handler))
+        .route("/api/v1/queries/validate", post(query_validate_handler))
+        .route("/api/v1/queries/execute", post(query_execute_handler))
+        .route("/api/v1/provenance/{id}", get(provenance_read_handler))
+        .route("/api/v1/benchmarks/run", post(benchmark_run_handler))
         .with_state(state)
 }
 
@@ -77,7 +85,10 @@ async fn seed_handler(
     let out_dir = PathBuf::from(req.output_dir);
 
     match seed_validation_suite(seed, row_count, &out_dir) {
-        Ok(manifest) => (StatusCode::OK, Json(serde_json::to_value(manifest).unwrap_or_default())),
+        Ok(manifest) => (
+            StatusCode::OK,
+            Json(serde_json::to_value(manifest).unwrap_or_default()),
+        ),
         Err(err) => (
             StatusCode::BAD_REQUEST,
             Json(serde_json::json!({ "error": err.to_string() })),
@@ -96,7 +107,10 @@ async fn profile_handler(
         &state.config.profiler,
         req.baseline_profile.as_ref(),
     ) {
-        Ok(profile) => (StatusCode::OK, Json(serde_json::to_value(profile).unwrap_or_default())),
+        Ok(profile) => (
+            StatusCode::OK,
+            Json(serde_json::to_value(profile).unwrap_or_default()),
+        ),
         Err(err) => (
             StatusCode::BAD_REQUEST,
             Json(serde_json::json!({ "error": err.to_string() })),
@@ -119,7 +133,79 @@ async fn join_probe_handler(
         &req.right_field,
         &state.config.compute,
     ) {
-        Ok(res) => (StatusCode::OK, Json(serde_json::to_value(res).unwrap_or_default())),
+        Ok(res) => (
+            StatusCode::OK,
+            Json(serde_json::to_value(res).unwrap_or_default()),
+        ),
+        Err(err) => (
+            StatusCode::BAD_REQUEST,
+            Json(serde_json::json!({ "error": err.to_string() })),
+        ),
+    }
+}
+
+async fn query_validate_handler(Json(plan): Json<SemanticQueryPlan>) -> impl IntoResponse {
+    let res = validate_query_plan(&plan);
+    (
+        StatusCode::OK,
+        Json(serde_json::to_value(res).unwrap_or_default()),
+    )
+}
+
+async fn query_execute_handler(
+    State(state): State<AppState>,
+    Json(plan): Json<SemanticQueryPlan>,
+) -> impl IntoResponse {
+    match execute_query_plan(&plan, &state.provenance_store) {
+        Ok(res) => (
+            StatusCode::OK,
+            Json(serde_json::to_value(res).unwrap_or_default()),
+        ),
+        Err(err) => (
+            StatusCode::BAD_REQUEST,
+            Json(serde_json::json!({ "error": err.to_string() })),
+        ),
+    }
+}
+
+async fn provenance_read_handler(
+    State(state): State<AppState>,
+    Path(id): Path<String>,
+) -> impl IntoResponse {
+    match state.provenance_store.get_run(&id) {
+        Ok(run) => (
+            StatusCode::OK,
+            Json(serde_json::to_value(run).unwrap_or_default()),
+        ),
+        Err(err) => (
+            StatusCode::NOT_FOUND,
+            Json(serde_json::json!({ "error": err.to_string() })),
+        ),
+    }
+}
+
+async fn benchmark_run_handler(
+    State(state): State<AppState>,
+    Json(req): Json<SeedRequest>,
+) -> impl IntoResponse {
+    let seed = req.seed.unwrap_or(state.config.seeder.default_seed);
+    let row_count = req
+        .row_count
+        .unwrap_or(state.config.seeder.default_row_count);
+    let out_dir = PathBuf::from(req.output_dir);
+
+    match run_ablation_benchmark(
+        seed,
+        row_count,
+        &out_dir,
+        &state.config.profiler,
+        &state.config.compute,
+        &state.provenance_store,
+    ) {
+        Ok(scorecard) => (
+            StatusCode::OK,
+            Json(serde_json::to_value(scorecard).unwrap_or_default()),
+        ),
         Err(err) => (
             StatusCode::BAD_REQUEST,
             Json(serde_json::json!({ "error": err.to_string() })),
@@ -163,6 +249,7 @@ mod tests {
                     default_row_count: 80,
                 },
             }),
+            provenance_store: ProvenanceStore::default(),
         }
     }
 
@@ -245,6 +332,7 @@ mod tests {
             "right_field": "party_uuid"
         });
         let probe_resp = app
+            .clone()
             .oneshot(
                 Request::builder()
                     .method("POST")
@@ -266,5 +354,31 @@ mod tests {
             serde_json::from_slice(&probe_bytes).expect("parse probe json");
         assert_eq!(probe_json["observed_cardinality"], "N:1");
         assert_eq!(probe_json["epistemic_status"], "empirically_tested");
+
+        // 4. Run 3-Mode Ablation Benchmark via HTTP
+        let bench_resp = app
+            .oneshot(
+                Request::builder()
+                    .method("POST")
+                    .uri("/api/v1/benchmarks/run")
+                    .header("content-type", "application/json")
+                    .body(Body::from(seed_payload.to_string()))
+                    .expect("bench request"),
+            )
+            .await
+            .expect("bench response");
+        assert_eq!(bench_resp.status(), StatusCode::OK);
+        let bench_bytes = bench_resp
+            .into_body()
+            .collect()
+            .await
+            .expect("bench body")
+            .to_bytes();
+        let bench_json: serde_json::Value =
+            serde_json::from_slice(&bench_bytes).expect("parse bench json");
+        assert_eq!(
+            bench_json["mode_c_autonomous_plus_hitl_verified"]["execution_accuracy_pct"],
+            100.0
+        );
     }
 }
