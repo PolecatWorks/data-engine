@@ -163,6 +163,10 @@ flowchart LR
   - `check-paths`: Filters `charts/**` and `.github/workflows/helm-ci-*.yaml`.
   - `lint`: Runs `helm lint charts/data-engine` when `charts == 'true'`.
   - `ci-success` (`Helm CI Success`): Runs `if: always()` to provide a consistent required status check whether `charts/**` was modified or skipped.
+- **Zero-Rewrite Istio `VirtualService` Template (`charts/data-engine/templates/virtualservice.yaml`)**:
+  - Controlled via `.Values.virtualService.enabled` (default `false` in `values.yaml` with `hosts: ["ai.k8s"]`, `gateways: ["istio-ingress/k8s-gateway", "mesh"]`, `apiPrefix: "/api/data-engine/v1"`, and `mfePrefix: "/mfe/data-engine"`).
+  - Routes `prefix: {{ .Values.virtualService.apiPrefix }}` directly to `{{ include "data-engine.fullname" . }}-be` on `{{ .Values.service.port }}` **without URI path rewrites**, matching `service.api_prefix: "/api/data-engine/v1"` in `charts/data-engine/configs/config.yaml`.
+  - Frontend MFE (`de-fe-container`) is served via `nginx-view` under `SERVE_ROOT=/mfe/data-engine` so all applications coexist in the shared Kubernetes namespace without path collisions.
 - **`.github/workflows/helm-ci-main.yaml` (`on: push` to `main`)**:
   - `check-paths` $\rightarrow$ `lint` $\rightarrow$ `publish` (computes `TIMESTAMP-SHA_SHORT` from `git log -1 --format=%h -- charts/data-engine`, appends `-main-${TIMESTAMP}-${SHA_SHORT}` to `version:` in `charts/data-engine/Chart.yaml`, and pushes to `oci://ghcr.io/polecatworks/data-engine/helm` via `bsord/helm-push@v4`) $\rightarrow$ `ci-success` (`Helm CI Success`).
 - **SemVer Release Workflows (`de-be-release.yml`, `de-fe-release.yml`, `helm-release.yml`)**:

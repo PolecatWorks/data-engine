@@ -54,3 +54,12 @@ devsecops:
   RequestAuthentication:
     jwtRules: []
 customPodSHA: ""
+virtualService:
+  enabled: false
+  hosts:
+    - ai.k8s
+  gateways:
+    - istio-ingress/k8s-gateway
+    - mesh
+  apiPrefix: /api/data-engine/v1
+  mfePrefix: /mfe/data-engine

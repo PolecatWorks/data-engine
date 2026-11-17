@@ -1,0 +1,23 @@
+{{- if .Values.virtualService.enabled -}}
+apiVersion: networking.istio.io/v1beta1
+kind: VirtualService
+metadata:
+  name: {{ include "data-engine.fullname" . }}
+  labels:
+    {{- include "data-engine.labels" . | nindent 4 }}
+spec:
+  hosts:
+    {{- toYaml .Values.virtualService.hosts | nindent 4 }}
+  gateways:
+    {{- toYaml .Values.virtualService.gateways | nindent 4 }}
+  http:
+    - name: data-engine-be
+      match:
+        - uri:
+            prefix: {{ .Values.virtualService.apiPrefix }}
+      route:
+        - destination:
+            host: {{ include "data-engine.fullname" . }}-be
+            port:
+              number: {{ .Values.service.port }}
+{{- end }}

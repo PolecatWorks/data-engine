@@ -20,3 +20,10 @@ Backend Service Health Check
     Log    Service Health Response: ${response.content}
     Should Be Equal As Strings    ${response.json()['status']}    ok
     Should Be Equal As Strings    ${response.json()['service']}    data-engine-be
+
+Backend Configured Prefix Health Check
+    [Documentation]    Verify the backend health endpoint responds via the configured api_prefix.
+    ${response}=    GET    ${BE_BASE_URL}/api/data-engine/v1/health    expected_status=200
+    Log    Prefix Health Response: ${response.content}
+    Should Be Equal As Strings    ${response.json()['status']}    ok
+    Should Be Equal As Strings    ${response.json()['service']}    data-engine-be

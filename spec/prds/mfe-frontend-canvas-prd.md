@@ -3,8 +3,13 @@
 ## Overview
 This PRD defines the requirements, architecture, and component specifications for the **Data-Engine Frontend Container (`de-fe-container`)**. Built with **Angular**, **Angular Material**, **Tailwind CSS**, and **`@angular-architects/native-federation`**, `de-fe-container` operates in three modes:
 1. **Standalone Developer & Steward Application (`:4200`)**: Full two-pane studio for managing data sources, datasets, field profiles, join hypotheses, sandboxed algorithms, and provenance graphs.
-2. **Federated Portal Remote inside [`Mfe-shell`](https://github.com/PolecatWorks/Mfe-shell) (`./routes`)**: Mounts seamlessly under `/home/data-engine` via `remoteEntry.json` (`:3003` locally, `/mfe/data-engine` in Kubernetes) sharing `@polecatworks/mfe-shared`.
+2. **Federated Portal Remote inside [`Mfe-shell`](https://github.com/PolecatWorks/Mfe-shell) (`./routes`)**: Mounts seamlessly under `/home/data-engine` via `remoteEntry.json` (`:3003` locally, `/mfe/data-engine/remoteEntry.json` in Kubernetes with `SERVE_ROOT=/mfe/data-engine`) sharing `@polecatworks/mfe-shared`.
 3. **Live Bidirectional Shared Canvas MFE on the RHS of [`Angry-agent`](https://github.com/PolecatWorks/Angry-agent)**: Exposes self-describing, live-patchable form and workspace wrappers (`./DataAssetFormWrapper`, `./JoinHypothesisReviewWrapper`, `./AlgorithmSandboxWrapper`, `./ProvenanceLineageWrapper`) that allow a human user and the chat LLM to simultaneously inspect, click, edit, and verify the exact same live form in real time.
+
+### Zero-Rewrite Kubernetes Hosting & Runtime Configuration Resolution
+- **MFE Hosting Prefix (`/mfe/data-engine`)**: In Kubernetes, `de-fe-container` is deployed via the `nginx-view` chart with `SERVE_ROOT=/mfe/data-engine`, exposing its federated assets and `config.json` under `/mfe/data-engine/*` without Istio URI path rewrites.
+- **Module-Relative `config.json` Resolution (`import.meta.url`)**: Whether running standalone or federated inside `Mfe-shell` (`/home/data-engine`) or `Angry-agent`, `de-fe-container` resolves its runtime configuration via `new URL('config.json', import.meta.url)` so it always fetches `/mfe/data-engine/config.json` rather than the host application's root `/config.json`.
+- **Service-Scoped Backend API Prefix (`/api/data-engine/v1`)**: `config.json` configures `apiUrl: "/api/data-engine/v1"`, matching `de-be-container`'s `service.api_prefix` and the Istio `VirtualService` prefix rule.
 
 ---
 
@@ -22,7 +27,7 @@ flowchart TB
         CanvasSvc["SharedCanvasService\n(Live State, JSON Patch Stream,\nActive Selection & Schema Registry)"]
     end
 
-    subgraph DE_FE["de-fe-container (Angular Native Federation Remote :3003)"]
+    subgraph DE_FE["de-fe-container (Angular Native Federation Remote :3003 | /mfe/data-engine)"]
         Routes["./routes\nFull Data-Engine Studio Routes"]
         AssetForm["./DataAssetFormWrapper\nLive Dataset & Field Steward Form"]
         JoinCard["./JoinHypothesisReviewWrapper\nEmpirical Join Proof & HITL Review Card"]
@@ -30,7 +35,7 @@ flowchart TB
         ProvViewer["./ProvenanceLineageWrapper\nInteractive Provenance & Lineage DAG"]
     end
 
-    DE_BE["de-be-container (:8080)\nREST API & MCP Server"]
+    DE_BE["de-be-container (:8080)\nREST API & MCP Server (/api/data-engine/v1)"]
 
     Shell -->|"loadRemoteModule('data-engine', './routes')"| Routes
     Angry -->|"MfeRenderer mounts on RHS of Chat"| AssetForm
@@ -41,7 +46,7 @@ flowchart TB
     Shell --- SharedLib
     Angry --- SharedLib
     DE_FE --- SharedLib
-    DE_FE <-->|"HTTP REST"| DE_BE
+    DE_FE <-->|"HTTP REST (/api/data-engine/v1)"| DE_BE
 ```
 
 ---

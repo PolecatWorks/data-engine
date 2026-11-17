@@ -3,8 +3,10 @@
 ## Overview
 This PRD defines the REST API and **Model Context Protocol (MCP)** service contracts for **Data-Engine (`de-be-container`)**, following the established patterns of [`Graphrag`](https://github.com/PolecatWorks/Graphrag) and [`agent-as-data`](https://github.com/PolecatWorks/agent-as-data).
 
-By exposing all Data-Engine capabilities over both REST (`/api/v1/*`) and stateless HTTP JSON-RPC 2.0 MCP (`/mcp` and `/api/v1/mcp`), autonomous agents in **`agent-as-data`** and **`Angry-agent`** as well as human stewards using **`de-fe-container`** can:
-1. Verify connectivity via the canonical **`hello`** tool.
+All REST and MCP endpoints are mounted under the configurable `service.api_prefix` (defaulting in `config/default.yaml` and `charts/data-engine/configs/config.yaml` to `"/api/data-engine/v1"`, overridable via `DE_BE__SERVICE__API_PREFIX`) so Kubernetes Istio `VirtualService` ingress can route `/api/data-engine/v1/*` directly to `de-be-container` without URI path rewrites. For backwards compatibility with existing internal probes and integration tests, when `service.api_prefix != "/api/v1"`, the Axum router also mounts the routes under `/api/v1/*` and exposes `/health` at the root.
+
+By exposing all Data-Engine capabilities over both REST (`/api/data-engine/v1/*` and `/api/v1/*`) and stateless HTTP JSON-RPC 2.0 MCP (`/mcp`, `/api/data-engine/v1/mcp`, and `/api/v1/mcp`), autonomous agents in **`agent-as-data`** and **`Angry-agent`** as well as human stewards using **`de-fe-container`** can:
+1. Verify connectivity via the `/health` endpoint (`/api/data-engine/v1/health`) and canonical **`hello`** MCP tool.
 2. Register and browse external data sources (`source_*`).
 3. Introspect, profile, and curate datasets and fields (`dataset_*`, `field_*`).
 4. Discover, empirically probe, and verify or reject join hypotheses (`join_*`).
@@ -13,7 +15,7 @@ By exposing all Data-Engine capabilities over both REST (`/api/v1/*`) and statel
 
 ---
 
-## REST BREAD & Pipeline API Specification (`:8080`)
+## REST BREAD & Pipeline API Specification (`:8080`, mounted at `${service.api_prefix}` e.g. `/api/data-engine/v1` and `/api/v1`)
 
 ### 1. Data Sources Resource (`/api/v1/sources`)
 
