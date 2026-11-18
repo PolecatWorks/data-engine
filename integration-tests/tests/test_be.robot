@@ -27,3 +27,13 @@ Backend Configured Prefix Health Check
     Log    Prefix Health Response: ${response.content}
     Should Be Equal As Strings    ${response.json()['status']}    ok
     Should Be Equal As Strings    ${response.json()['service']}    data-engine-be
+
+Backend Negative: Unknown Prefix Returns 404
+    [Documentation]    Verify requests to non-existent API prefixes return 404.
+    ${response}=    GET    ${BE_BASE_URL}/api/unknown-service/v1/health    expected_status=404
+    Log    Response status: ${response.status_code}
+
+Backend Negative: Missing API Version Returns 404
+    [Documentation]    Verify requests with missing path segments return 404.
+    ${response}=    GET    ${BE_BASE_URL}/api/data-engine/health    expected_status=404
+    Log    Response status: ${response.status_code}
