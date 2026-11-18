@@ -1,1 +1,1 @@
-window.SIDEBAR_ITEMS = {"enum":["ComputeConfigError","ConfigError","ProfilerConfigError","SandboxConfigError","SeederConfigError","ServiceConfigError"],"struct":["AppConfig","ComputeConfig","ProfilerConfig","SandboxConfig","SeederConfig","ServiceConfig"]};
+window.SIDEBAR_ITEMS = {"enum":["ComputeConfigError","ConfigError","ProfilerConfigError","SandboxConfigError","SeederConfigError","ServiceConfigError"],"fn":["default_api_prefix"],"struct":["AppConfig","ComputeConfig","ProfilerConfig","SandboxConfig","SeederConfig","ServiceConfig"]};
