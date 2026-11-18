@@ -75,7 +75,7 @@ fn test_docker_publish_workflows_match_sward_warden_pattern() {
     assert!(be_yml.contains("git sparse-checkout set \"docs/rust\""));
     assert!(be_yml.contains("rollout-dev:"));
     assert!(
-        be_yml.contains("kubectl rollout restart deployment/data-engine-be -n data-engine-dev")
+        be_yml.contains("kubectl rollout restart deployment/data-engine-be -n agent-as-data-dev")
     );
     assert!(be_yml.contains("name: DE-BE CI Success"));
 
@@ -91,7 +91,7 @@ fn test_docker_publish_workflows_match_sward_warden_pattern() {
     assert!(fe_yml.contains("Apply tags to existing image"));
     assert!(fe_yml.contains("rollout-dev:"));
     assert!(fe_yml.contains(
-        "kubectl rollout restart deployment/data-engine-fe-nginx-view -n data-engine-dev"
+        "kubectl rollout restart deployment/data-engine-fe-nginx-view -n agent-as-data-dev"
     ));
     assert!(fe_yml.contains("name: DE-FE CI Success"));
 }
