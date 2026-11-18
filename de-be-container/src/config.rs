@@ -17,6 +17,8 @@ pub enum ServiceConfigError {
     InvalidPort,
     #[error("service.log_level must not be empty")]
     EmptyLogLevel,
+    #[error("service.api_prefix must start with '/', have length > 1, and not end with '/'")]
+    InvalidApiPrefix,
 }
 
 #[derive(Debug, Error, PartialEq)]
@@ -78,6 +80,10 @@ pub enum ConfigError {
     Sandbox(#[from] SandboxConfigError),
 }
 
+fn default_api_prefix() -> String {
+    "/api/data-engine/v1".to_string()
+}
+
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
 pub struct ServiceConfig {
     pub name: String,
@@ -85,6 +91,8 @@ pub struct ServiceConfig {
     pub host: String,
     pub port: u16,
     pub log_level: String,
+    #[serde(default = "default_api_prefix")]
+    pub api_prefix: String,
 }
 
 impl ServiceConfig {
@@ -103,6 +111,10 @@ impl ServiceConfig {
         }
         if self.log_level.trim().is_empty() {
             return Err(ServiceConfigError::EmptyLogLevel);
+        }
+        let prefix = self.api_prefix.trim();
+        if !prefix.starts_with('/') || prefix.len() <= 1 || prefix.ends_with('/') {
+            return Err(ServiceConfigError::InvalidApiPrefix);
         }
         Ok(())
     }
@@ -269,10 +281,53 @@ sandbox:
         let cfg = AppConfig::load(tmp.path()).expect("valid config should load");
         assert_eq!(cfg.service.name, "data-engine-be");
         assert_eq!(cfg.service.port, 8080);
+        assert_eq!(cfg.service.api_prefix, "/api/data-engine/v1");
         assert_eq!(cfg.profiler.minhash_num_hashes, 64);
         assert_eq!(cfg.compute.join_inclusion_threshold, 0.80);
         assert_eq!(cfg.seeder.default_seed, 42);
         assert_eq!(cfg.sandbox.python_binary, "python3");
+    }
+
+    #[test]
+    fn test_service_config_api_prefix_validation() {
+        let mut tmp = NamedTempFile::new().expect("create temp yaml");
+        tmp.write_all(sample_yaml().as_bytes()).expect("write yaml");
+        let mut cfg = AppConfig::load(tmp.path()).expect("load base");
+
+        // Valid custom prefixes
+        cfg.service.api_prefix = "/api/v1".to_string();
+        assert!(cfg.validate().is_ok());
+
+        cfg.service.api_prefix = "/api/custom/v1".to_string();
+        assert!(cfg.validate().is_ok());
+
+        // Invalid: missing leading slash
+        cfg.service.api_prefix = "api/v1".to_string();
+        assert!(matches!(
+            cfg.validate(),
+            Err(ConfigError::Service(ServiceConfigError::InvalidApiPrefix))
+        ));
+
+        // Invalid: root slash only (len <= 1)
+        cfg.service.api_prefix = "/".to_string();
+        assert!(matches!(
+            cfg.validate(),
+            Err(ConfigError::Service(ServiceConfigError::InvalidApiPrefix))
+        ));
+
+        // Invalid: trailing slash
+        cfg.service.api_prefix = "/api/data-engine/v1/".to_string();
+        assert!(matches!(
+            cfg.validate(),
+            Err(ConfigError::Service(ServiceConfigError::InvalidApiPrefix))
+        ));
+
+        // Invalid: empty string
+        cfg.service.api_prefix = "".to_string();
+        assert!(matches!(
+            cfg.validate(),
+            Err(ConfigError::Service(ServiceConfigError::InvalidApiPrefix))
+        ));
     }
 
     #[test]

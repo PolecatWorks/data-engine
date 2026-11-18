@@ -186,6 +186,17 @@ fn test_dockerfile_helm_chart_and_garden_configs() {
         .expect("read charts/data-engine/Chart.yaml");
     assert!(chart_yaml.contains("name: data-engine"));
 
+    let values_yaml = fs::read_to_string(root.join("charts/data-engine/values.yaml"))
+        .expect("read charts/data-engine/values.yaml");
+    assert!(values_yaml.contains("virtualService:"));
+    assert!(values_yaml.contains("apiPrefix: /api/data-engine/v1"));
+
+    let vs_template = fs::read_to_string(root.join("charts/data-engine/templates/virtualservice.yaml"))
+        .expect("read charts/data-engine/templates/virtualservice.yaml");
+    assert!(vs_template.contains("kind: VirtualService"));
+    assert!(vs_template.contains(".Values.virtualService.enabled"));
+    assert!(vs_template.contains(".Values.virtualService.apiPrefix"));
+
     let garden_yml = fs::read_to_string(root.join("garden.yml")).expect("read garden.yml");
     assert!(garden_yml.contains("name: data-engine"));
     assert!(garden_yml.contains("defaultNamespace: data-engine-pr-${var.pr-number}"));

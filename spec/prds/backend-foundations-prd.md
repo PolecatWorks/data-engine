@@ -63,7 +63,11 @@ flowchart TD
 **Objective:** Guarantee that `de-be-container` starts only with valid, complete configuration and uses strongly typed, inspectable error enums across all modules.
 - **CLI Argument Parsing (`clap` Derive)**: Defined in `de-be-container/src/cli.rs` using `#[derive(clap::Parser)]` supporting `-c` / `--config <FILE>`.
 - **Centralized Loader (`figment`)**: `AppConfig` (`de-be-container/src/config.rs`) loads configuration from the YAML file passed via `-c` and merges environment variable overrides prefixed with `DE_BE__` (using `__` for nested structs).
+- **Configurable Service API Prefix (`service.api_prefix`)**:
+  - `ServiceConfig` defines `api_prefix: String` (defaulting in configuration files to `"/api/data-engine/v1"`, overridable via `DE_BE__SERVICE__API_PREFIX`).
+  - `ServiceConfig::validate()` enforces that `api_prefix` is non-empty, starts with `'/'`, has length `> 1`, and does not end with `'/'`, returning `ServiceConfigError::InvalidApiPrefix` on violation so Kubernetes Istio `VirtualService` path routing works cleanly with zero URI path rewrites.
 - **Modular Config Ownership & Delegated Validation**:
+  - `service` (`src/config.rs`): `ServiceConfig` (`name`, `version`, `host`, `port`, `log_level`, `api_prefix`) + `ServiceConfigError` (`EmptyName`, `EmptyVersion`, `EmptyHost`, `InvalidPort`, `EmptyLogLevel`, `InvalidApiPrefix`)
   - `db` (`src/db.rs`): `DatabaseConfig` + `DatabaseError`
   - `connectors` (`src/connectors/mod.rs`): `ConnectorsConfig` + `ConnectorError`
   - `profiler` (`src/profiler/mod.rs`): `ProfilerConfig` + `ProfilerError`

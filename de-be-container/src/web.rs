@@ -57,25 +57,37 @@ pub struct JoinProbeRequest {
     pub right_field: String,
 }
 
-pub fn build_router(state: AppState) -> Router {
+fn v1_routes() -> Router<AppState> {
     Router::new()
-        .route("/api/v1/health", get(health_handler))
-        .route("/api/v1/datasets/seed", post(seed_handler))
-        .route("/api/v1/datasets/profile", post(profile_handler))
-        .route("/api/v1/joins/probe", post(join_probe_handler))
-        .route("/api/v1/queries/validate", post(query_validate_handler))
-        .route("/api/v1/queries/execute", post(query_execute_handler))
+        .route("/health", get(health_handler))
+        .route("/datasets/seed", post(seed_handler))
+        .route("/datasets/profile", post(profile_handler))
+        .route("/joins/probe", post(join_probe_handler))
+        .route("/queries/validate", post(query_validate_handler))
+        .route("/queries/execute", post(query_execute_handler))
         .route(
-            "/api/v1/algorithms/validate",
+            "/algorithms/validate",
             post(algorithm_validate_handler),
         )
         .route(
-            "/api/v1/algorithms/execute",
+            "/algorithms/execute",
             post(algorithm_execute_handler),
         )
-        .route("/api/v1/provenance/{id}", get(provenance_read_handler))
-        .route("/api/v1/benchmarks/run", post(benchmark_run_handler))
-        .with_state(state)
+        .route("/provenance/{id}", get(provenance_read_handler))
+        .route("/benchmarks/run", post(benchmark_run_handler))
+}
+
+pub fn build_router(state: AppState) -> Router {
+    let prefix = state.config.service.api_prefix.trim_end_matches('/');
+    let mut router = Router::new()
+        .route("/health", get(health_handler))
+        .nest(prefix, v1_routes());
+
+    if prefix != "/api/v1" {
+        router = router.nest("/api/v1", v1_routes());
+    }
+
+    router.with_state(state)
 }
 
 async fn health_handler(State(state): State<AppState>) -> Json<HealthResponse> {
@@ -279,6 +291,7 @@ mod tests {
                     host: "127.0.0.1".to_string(),
                     port: 8080,
                     log_level: "info".to_string(),
+                    api_prefix: "/api/data-engine/v1".to_string(),
                 },
                 profiler: ProfilerConfig {
                     max_sample_rows: 50_000,
@@ -313,7 +326,23 @@ mod tests {
     #[tokio::test]
     async fn test_health_endpoint_returns_ok() {
         let app = build_router(test_state());
+
+        // Test root health probe
+        let resp_root = app
+            .clone()
+            .oneshot(
+                Request::builder()
+                    .uri("/health")
+                    .body(Body::empty())
+                    .expect("build request"),
+            )
+            .await
+            .expect("call /health");
+        assert_eq!(resp_root.status(), StatusCode::OK);
+
+        // Test backward-compatible /api/v1/health
         let response = app
+            .clone()
             .oneshot(
                 Request::builder()
                     .uri("/api/v1/health")
@@ -333,6 +362,66 @@ mod tests {
         let payload: HealthResponse = serde_json::from_slice(&bytes).expect("parse health");
         assert_eq!(payload.status, "ok");
         assert_eq!(payload.service, "data-engine-be");
+
+        // Test configured prefix /api/data-engine/v1/health
+        let resp_prefix = app
+            .oneshot(
+                Request::builder()
+                    .uri("/api/data-engine/v1/health")
+                    .body(Body::empty())
+                    .expect("build request"),
+            )
+            .await
+            .expect("call /api/data-engine/v1/health");
+        assert_eq!(resp_prefix.status(), StatusCode::OK);
+    }
+
+    #[tokio::test]
+    async fn test_custom_api_prefix_routing() {
+        let mut state = test_state();
+        let mut cfg = (*state.config).clone();
+        cfg.service.api_prefix = "/api/custom/v1".to_string();
+        state.config = Arc::new(cfg);
+
+        let app = build_router(state);
+
+        // Custom prefix works
+        let resp_custom = app
+            .clone()
+            .oneshot(
+                Request::builder()
+                    .uri("/api/custom/v1/health")
+                    .body(Body::empty())
+                    .expect("build request"),
+            )
+            .await
+            .expect("call custom");
+        assert_eq!(resp_custom.status(), StatusCode::OK);
+
+        // Backward compatibility /api/v1 works
+        let resp_v1 = app
+            .clone()
+            .oneshot(
+                Request::builder()
+                    .uri("/api/v1/health")
+                    .body(Body::empty())
+                    .expect("build request"),
+            )
+            .await
+            .expect("call v1");
+        assert_eq!(resp_v1.status(), StatusCode::OK);
+
+        // Root /health works
+        let resp_root = app
+            .oneshot(
+                Request::builder()
+                    .uri("/health")
+                    .body(Body::empty())
+                    .expect("build request"),
+            )
+            .await
+            .expect("call root");
+        assert_eq!(resp_root.status(), StatusCode::OK);
     }
 
     #[tokio::test]
