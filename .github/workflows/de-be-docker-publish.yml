@@ -435,7 +435,7 @@ jobs:
 
       - name: Trigger Rolling Restart
         run: |
-          kubectl rollout restart deployment/data-engine-be -n data-engine-dev
+          kubectl rollout restart deployment/data-engine-be -n agent-as-data-dev || echo "Deployment data-engine-be in agent-as-data-dev not found or namespace pending. Skipping."
 
   ci-success:
     name: DE-BE CI Success

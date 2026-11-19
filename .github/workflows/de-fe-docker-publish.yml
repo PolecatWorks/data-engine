@@ -349,7 +349,7 @@ jobs:
 
       - name: Trigger Rolling Restart
         run: |
-          kubectl rollout restart deployment/data-engine-fe-nginx-view -n data-engine-dev
+          kubectl rollout restart deployment/data-engine-fe-nginx-view -n agent-as-data-dev || echo "Deployment data-engine-fe-nginx-view in agent-as-data-dev not found or namespace pending. Skipping."
 
   ci-success:
     name: DE-FE CI Success
