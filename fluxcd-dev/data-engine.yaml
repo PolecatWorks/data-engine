@@ -1,0 +1,30 @@
+---
+apiVersion: source.toolkit.fluxcd.io/v1
+kind: OCIRepository
+metadata:
+  name: data-engine
+spec:
+  interval: 10m
+  url: oci://ghcr.io/polecatworks/data-engine/helm/data-engine
+  ref:
+    semver: ">= 0.1.x-0"
+    semverFilter: .*-main
+---
+apiVersion: helm.toolkit.fluxcd.io/v2
+kind: HelmRelease
+metadata:
+  name: data-engine
+spec:
+  releaseName: data-engine
+  chartRef:
+    kind: OCIRepository
+    name: data-engine
+  interval: 50m
+  install:
+    remediation:
+      retries: 3
+  values:
+    image:
+      repository: ghcr.io/polecatworks/data-engine-be
+      tag: main
+      pullPolicy: Always

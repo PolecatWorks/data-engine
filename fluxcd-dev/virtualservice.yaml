@@ -1,0 +1,19 @@
+---
+apiVersion: networking.istio.io/v1beta1
+kind: VirtualService
+metadata:
+  name: data-engine
+spec:
+  hosts:
+    - ai.k8s
+  gateways:
+    - istio-ingress/k8s-gateway
+    - mesh
+  http:
+    - name: data-engine-be
+      match:
+        - uri:
+            prefix: /api/data-engine/v1
+      route:
+        - destination:
+            host: data-engine-be
