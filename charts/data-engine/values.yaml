@@ -1,7 +1,7 @@
 imagePullSecrets: []
 replicaCount: 1
 containerPort: 8080
-lifecyclePort: 8080
+lifecyclePort: 8079
 env: []
 livenessProbe:
   httpGet:
