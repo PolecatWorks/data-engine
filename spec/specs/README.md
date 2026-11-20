@@ -25,3 +25,7 @@ This directory contains the detailed technical specifications and Test-Driven De
 * [07. Dynamic Python Algorithm Sandbox, `TRAP-05` Non-SQL Analytics & AAD Skill Promotion (`POST /api/v1/algorithms/validate`, `POST /api/v1/algorithms/execute`)](./07-python-sandbox-and-trap-05-spec.md) - `complete`
 * [08. Configurable Service API Prefix & Kubernetes VirtualService Composition (`service.api_prefix`, Istio VirtualService)](./08-configurable-api-prefix-and-virtualservice-spec.md) - `complete`
 
+## Increment 5: Angular Native Federation MFE & Shared Canvas Remote
+
+* [09. Angular Native Federation MFE Remote (`de-fe-container`) & Bidirectional Canvas Wrappers](./09-mfe-frontend-container-spec.md) - `draft`
+
