@@ -3,3 +3,4 @@ kind: Kustomization
 resources:
   - data-engine.yaml
   - virtualservice.yaml
+  - keycloak-crs.yaml
