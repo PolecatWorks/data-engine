@@ -28,8 +28,8 @@ flowchart TB
     end
 
     subgraph DataAndGraphTier["3. Semantic Graph, Compute & Sandbox Tier (MCP JSON-RPC 2.0)"]
-        GR_BE["GraphRAG-RS (:8080/api/v1/mcp)\n(Layer 2 Concepts, Layer 1 Datasets, Layer 0 Fields,\ngraphrag_find_join_path & ontology_sync_dataset)"]
-        DE_BE["data-engine BE (:8080/api/v1/mcp)\n(S3/Parquet/SQL/NoSQL Connectors, MinHash Profiler,\nDataFusion AST/Join Prober, Arrow /dev/shm Python Sandbox,\nW3C PROV / OpenLineage Provenance Ledger)"]
+        GR_BE["GraphRAG-RS (/api/graphrag/v1/mcp)\n(Layer 2 Concepts, Layer 1 Datasets, Layer 0 Fields,\ngraphrag_find_join_path & ontology_sync_dataset)"]
+        DE_BE["data-engine BE (/api/data-engine/v1/mcp)\n(S3/Parquet/SQL/NoSQL Connectors, MinHash Profiler,\nDataFusion AST/Join Prober, Arrow /dev/shm Python Sandbox,\nW3C PROV / OpenLineage Provenance Ledger)"]
     end
 
     Shell --> AngryUI & DE_FE & MFE1 & AAD_FE
@@ -75,8 +75,8 @@ sequenceDiagram
     actor User as Analyst User
     participant Canvas as Angry-agent + RHS Canvas
     participant Agent as ProvenanceDataAnalyst Agent
-    participant GR as Graphrag (/api/v1/mcp)
-    participant DE as data-engine (/api/v1/mcp)
+    participant GR as Graphrag (/api/graphrag/v1/mcp)
+    participant DE as data-engine (/api/data-engine/v1/mcp)
 
     User->>Canvas: "Build a cohort retention model joining orders and accounts and plot the curve"
     Canvas->>Agent: POST /api/chat (with live canvas state & selection)

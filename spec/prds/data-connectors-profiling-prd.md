@@ -33,7 +33,7 @@ flowchart LR
 
     subgraph Catalog["3. Data-Engine Catalog & GraphRAG Sync"]
         DB[("PostgreSQL (data_engine)\ndata_sources, datasets,\ndataset_fields, join_hypotheses")]
-        GR["GraphRAG-RS (/api/v1/mcp)\nLayer 1 Dataset Nodes,\nLayer 0 Field Nodes & JOINABLE_WITH Tuples"]
+        GR["GraphRAG-RS (/api/graphrag/v1/mcp)\nLayer 1 Dataset Nodes,\nLayer 0 Field Nodes & JOINABLE_WITH Tuples"]
     end
 
     subgraph Steward["4. Human-in-the-Loop Verification (de-fe-container)"]
@@ -158,7 +158,7 @@ sequenceDiagram
     participant Profiler as Profiler & Probe Engine
     participant DF as Apache DataFusion
     participant DB as PostgreSQL (join_hypotheses)
-    participant GR as GraphRAG-RS (/api/v1/mcp)
+    participant GR as GraphRAG-RS (/api/graphrag/v1/mcp)
 
     Agent->>Profiler: POST /api/v1/join-hypotheses/probe { left_field_id, right_field_id }
     Profiler->>DF: Execute read-only probe query (distinct counts, intersection, orphans)
