@@ -11,7 +11,7 @@ This PRD defines the foundational Rust microservice architecture, configuration 
 flowchart TD
     subgraph External["External Clients & Ecosystem Services"]
         Client["Web UI (de-fe-container) / MCP Clients"]
-        GraphRAG["GraphRAG-RS (/api/v1/mcp)"]
+        GraphRAG["GraphRAG-RS (/api/graphrag/v1/mcp)"]
         LLM["LLM Provider (Ollama / OpenAI)"]
     end
 
