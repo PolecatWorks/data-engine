@@ -30,8 +30,14 @@ image:
 service:
   type: ClusterIP
   port: 80
-volumeMounts: []
-volumes: []
+volumeMounts:
+  - name: config
+    mountPath: /etc/de-be
+    readOnly: true
+volumes:
+  - name: config
+    configMap:
+      name: '{{ include "data-engine.fullname" . }}-be'
 labels: {}
 podAnnotations: {}
 podLabels: {}
