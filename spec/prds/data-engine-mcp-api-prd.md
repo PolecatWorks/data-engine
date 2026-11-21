@@ -98,6 +98,20 @@ By exposing all Data-Engine capabilities over both REST (`/api/data-engine/v1/*`
 
 ---
 
+### 8. Curated Statistical Analytics Resource (`/api/v1/analytics`)
+Detailed statistical contracts, `StatisticalResultEnvelope` schemas, and fail-fast Arrow IPC sampling rules are defined in [08. Statistical Analytics Engine PRD](./statistical-analytics-engine-prd.md).
+
+| Operation | HTTP Method & Route | Success Status | Description |
+| :--- | :--- | :--- | :--- |
+| **Describe & Check** | `POST /api/v1/analytics/describe` | `200 OK` | Computes distributional moments, quantiles, normality tests, outlier flags, missingness diagnostics, and plot specs. |
+| **Hypothesis Test** | `POST /api/v1/analytics/hypothesis-test` | `200 OK` | Executes parametric/non-parametric tests with automatic assumption checks, effect sizes, CIs, FDR/Bonferroni corrections, and optional stratified confounding checks. |
+| **Power Analysis** | `POST /api/v1/analytics/power` | `200 OK` | Computes prospective/retrospective power, required sample size per arm, or Minimum Detectable Effect (MDE). |
+| **Correlation & VIF** | `POST /api/v1/analytics/correlation` | `200 OK` | Computes Pearson/Spearman/Kendall matrices, partial correlations, FDR-adjusted $p$-values, and VIF multicollinearity diagnostics. |
+| **Regression Fit** | `POST /api/v1/analytics/regression` | `200 OK` | Fits OLS, GLM (Gaussian/Binomial/Poisson/Gamma), or Huber/RANSAC robust regression with HC3 SEs, Breusch-Pagan, Durbin-Watson, and Cook's distance diagnostics. |
+| **Time-Series Analyze** | `POST /api/v1/analytics/timeseries` | `200 OK` | Runs STL decomposition, ADF/KPSS stationarity tests, ACF/PACF, changepoint/anomaly detection, and ETS/ARIMA forecasting with prediction intervals. |
+
+---
+
 ## Model Context Protocol (MCP) Service Specification (`POST /mcp` & `POST /api/v1/mcp`)
 
 Using `rmcp` (`#[tool_router]`, `#[tool]`) and `schemars::JsonSchema`, `DataEngineMcpServer` exposes the following structured tools over stateless HTTP JSON-RPC 2.0:
@@ -123,5 +137,11 @@ Using `rmcp` (`#[tool_router]`, `#[tool]`) and `schemars::JsonSchema`, `DataEngi
 | | `algorithm_validate` | `id: String` | Dry-runs the algorithm in the sandbox on a 100-row sample. |
 | | `algorithm_execute` | `id: String`, `question: String` | Executes the algorithm in the sandbox over zero-copy Arrow inputs and records full provenance. |
 | | `algorithm_browse` | — | Lists registered algorithms. |
+| **Statistical Analytics** | `stat_describe_and_check` | `input_binding: Value`, `columns: Vec<String>` | Runs distributional, normality, outlier, and missingness diagnostics returning a `StatisticalResultEnvelope`. |
+| | `stat_hypothesis_test` | `input_binding: Value`, `method: String`, `value_col: String` | Runs parametric/non-parametric tests with automatic assumption checks, fallback results, CIs, effect sizes, and optional FDR/stratification. |
+| | `stat_power_analysis` | `test_type: String`, `alpha: f64` | Computes sample size, power, or Minimum Detectable Effect (MDE). |
+| | `stat_correlation_vif` | `input_binding: Value`, `columns: Vec<String>` | Computes Pearson/Spearman/Kendall matrices, partial correlations, and VIF multicollinearity diagnostics. |
+| | `stat_regression_fit` | `input_binding: Value`, `model_type: String`, `target_col: String`, `feature_cols: Vec<String>` | Fits OLS/GLM/logistic/robust regression with HC3 SEs, Breusch-Pagan, Durbin-Watson, and Cook's distance diagnostics. |
+| | `stat_timeseries_analyze` | `input_binding: Value`, `time_col: String`, `value_col: String` | Runs STL decomposition, ADF/KPSS stationarity tests, ACF/PACF, changepoints, and ETS/ARIMA forecasting. |
 | **Provenance** | `provenance_read` | `id: String` | Returns the full cryptographic provenance bundle and Mermaid lineage diagram for a run. |
 | | `provenance_browse` | — | Lists recent provenance runs. |

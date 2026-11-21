@@ -121,9 +121,15 @@ Every milestone run compares 3 epistemic configurations against `ground_truth_ma
 
 ---
 
+## 4. Statistical Rigor & Chaos Traps Extension (`STAT-TRAP-01`..`STAT-TRAP-04`)
+In addition to the five structural & semantic traps (`TRAP-01`..`TRAP-05`), `de-be seed-validation-suite --include-stat-traps` seeds four deterministic **Statistical Chaos Traps** (`STAT-TRAP-01` Simpson's paradox, `STAT-TRAP-02` heavy-tailed outliers, `STAT-TRAP-03` 20-segment multiple-testing/$p$-hacking, and `STAT-TRAP-04` spurious non-stationary time-series correlation) alongside NIST StRD golden math fixtures to evaluate both `data-engine`'s `stat_*` tools and `agent-as-data`'s `AppliedStatistician` skills/guardrails. See [08. Statistical Analytics Engine PRD](./statistical-analytics-engine-prd.md) for full pass criteria.
+
+---
+
 ## Related PRDs
 - [Ecosystem Architecture & End-to-End Journeys PRD](./ecosystem-architecture-and-journeys-prd.md)
 - [Data Connectors, Ingestion & Statistical Profiling PRD](./data-connectors-profiling-prd.md)
 - [Federated Compute, Code Sandbox & Provenance Engine PRD](./compute-sandbox-provenance-prd.md)
+- [Statistical Analytics Engine, Diagnostic Visualizations & Statistical Traps PRD](./statistical-analytics-engine-prd.md)
 - [GraphRAG Autonomous Semantic Ontology PRD](https://github.com/PolecatWorks/Graphrag/blob/feat/autonomous-semantic-data-canvas-prds/spec/prds/autonomous-semantic-ontology-prd.md)
 - [Agent-as-Data Semantic Stewardship & Provenance PRD](https://github.com/PolecatWorks/agent-as-data/blob/feat/autonomous-semantic-data-canvas-prds/spec/prds/data-semantic-stewardship-and-provenance-prd.md)
