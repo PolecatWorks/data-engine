@@ -15,6 +15,7 @@ flowchart TD
     D --> E["05. MFE Frontend & Shared Canvas PRD\n(mfe-frontend-canvas-prd.md)"]
     B & C & D & E --> F["06. CI/CD, Containers & Integration Tests PRD\n(ci-cd-container-integration-prd.md)"]
     B & C & E & F --> G["07. Validation Datasets, Benchmark Harness & Chaos Seeding PRD\n(validation-datasets-and-benchmark-prd.md)"]
+    C & D & E & G --> H["08. Statistical Analytics Engine, Diagnostics & Traps PRD\n(statistical-analytics-engine-prd.md)"]
 ```
 
 ---
@@ -31,6 +32,7 @@ flowchart TD
 | **[05. MFE Frontend & Live Shared Canvas](./mfe-frontend-canvas-prd.md)** | Angular 21 + `@angular-architects/native-federation` remote (`de-fe-container` served under `/mfe/data-engine`), standalone workbench views, and embeddable RHS Shared Canvas wrappers implementing `MfeCanvasController` (`applyPatch`, `getState`, `getSchema`, `onStateChange`, `onSelectionChange`). |
 | **[06. CI/CD, Containerization & Integration Testing](./ci-cd-container-integration-prd.md)** | Multi-stage Dockerfiles (`de-be-container` with in-build unit tests, `de-fe-container`), per-component multi-arch GHCR workflows (`de-be-docker-publish.yml`, `de-fe-docker-publish.yml`), SemVer release workflows (`*-release.yml`), Helm OCI pipelines (`helm-ci-*.yaml`) with zero-rewrite Istio `VirtualService`, Garden ephemeral K8s Robot Framework integration tests (`integration-test.yaml`), and `gh-pages` sparse-checkout report/docs publishing modeled after `sward-warden`. |
 | **[07. Validation Datasets, Benchmark Harness & Chaos Seeding](./validation-datasets-and-benchmark-prd.md)** | Curated external datasets (**BIRD-SQL**, **Valentine**, **Olist E-Commerce**, **NYC TLC**, **TPC-H via `tpchgen-rs`**), the built-in 3-wave **Enterprise Chaos & Drift Seeder (`de-be seed-validation-suite`)**, 5 canonical semantic traps (`TRAP-01`..`TRAP-05`), and the quantitative ablation evaluation matrix. |
+| **[08. Statistical Analytics Engine, Diagnostics & Statistical Traps](./statistical-analytics-engine-prd.md)** | Pinned scientific Python venv (`numpy`, `scipy`, `statsmodels`, `pyarrow`) behind `SandboxExecutor`, zero-copy Arrow IPC `/dev/shm` staging with fail-fast row limits & opt-in seeded sampling, typed `stat_*` MCP tools & REST analytics endpoints, universal `StatisticalResultEnvelope` with assumption checks & diagnostic plot specs, `./StatisticalDiagnosticsWrapper` canvas view, persistent field statistical traits, and `STAT-TRAP-01`..`STAT-TRAP-04` benchmarks. |
 
 ---
 
@@ -38,6 +40,7 @@ flowchart TD
 - [spec/research/README.md](../research/README.md)
   - [Autonomous Semantic Layer, Sandboxed Compute & Shared Canvas MFE Research](../research/autonomous-semantic-layer-and-sandbox-research.md)
   - [Validation Datasets, Benchmarks & Chaos Testing Research](../research/validation-datasets-and-benchmark-strategy.md)
+  - [Statistical Analytics Thinking, Compute Toolbelt & Diagnostic Visualization Research](../research/statistical-analytics-skills-and-compute-research.md)
 
 ## Build Specifications Index
 - [spec/specs/README.md](../specs/README.md)

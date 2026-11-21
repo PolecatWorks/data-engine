@@ -137,7 +137,7 @@ export interface MfeCanvasController<T = any> {
 
 ## Core Capability 2: Exposed Federated MFE Wrappers (`federation.config.js`)
 
-`de-fe-container/federation.config.js` exposes five entry points under remote name `data-engine`:
+`de-fe-container/federation.config.js` exposes six entry points under remote name `data-engine`:
 
 | Exposed Module | Component | Purpose on the RHS of Chat / Studio |
 | :--- | :--- | :--- |
@@ -146,6 +146,7 @@ export interface MfeCanvasController<T = any> {
 | `./JoinHypothesisReviewWrapper` | `JoinHypothesisReviewComponent` | Human-in-the-loop stewardship card displaying a candidate `JOINABLE_WITH` relationship, its statistical inclusion ratios, `1:1`/`1:N` cardinality badge, sample matched rows vs. unmatched orphan values, optional `WHERE` filter invariant input, and **`[Approve & Verify]`** / **`[Reject (Forbidden Join)]`** buttons. |
 | `./AlgorithmSandboxWrapper` | `AlgorithmSandboxComponent` | Interactive SQL / Python code editor with input dataset bindings, `[Dry-Run Validate (100 rows)]`, `[Execute in Sandbox]`, live execution telemetry, and output data table preview. Both the user and the chat LLM can edit the code and parameters live. |
 | `./ProvenanceLineageWrapper` | `ProvenanceLineageComponent` | Interactive lineage explorer rendering the Mermaid DAG (`GET /api/v1/provenance/:id/mermaid`), epistemic trust badge (`Verified` vs. `AI-Inferred`), dataset snapshot hashes, and clickable node inspection. |
+| `./StatisticalDiagnosticsWrapper` | `StatisticalDiagnosticsComponent` | Interactive statistical diagnostic canvas rendering the `StatisticalResultEnvelope` ([08. Statistical Analytics Engine PRD](./statistical-analytics-engine-prd.md)): assumption check scorecards (`passed`/`warning`/`failed`), primary vs. non-parametric fallback comparison, diagnostic charts (Q-Q, residual vs. fitted, distributions, CI forest bars, STL/ACF/forecast intervals), and 1-click **`[Verify Statistical Trait]`** stewardship actions. |
 
 ---
 
@@ -154,4 +155,4 @@ export interface MfeCanvasController<T = any> {
 Following the UI standards established in `agent-as-data`:
 1. **Viewport Isolation & Independent Scrolling**: The outer layout is locked to `100%` height (`overflow: hidden`) with independently scrolling left-hand entity lists and right-hand detail editors.
 2. **Nested Master-Detail Deep Linking**: Selecting a dataset (`/datasets/:id`), join hypothesis (`/joins/:id`), algorithm (`/algorithms/:id`), or provenance run (`/provenance/:id`) synchronizes with the Angular Router for bookmarkable deep links.
-3. **Embedded RHS Canvas Switcher**: Includes a built-in MFE switcher bar allowing developers to preview and test switching between all four canvas wrappers in isolation.
+3. **Embedded RHS Canvas Switcher**: Includes a built-in MFE switcher bar allowing developers to preview and test switching between all five canvas wrappers in isolation.
