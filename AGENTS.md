@@ -110,3 +110,7 @@ Both dev servers have **watch/hot-reload enabled** — do **NOT** manually kill 
 - **Mandatory AST & Plan Validation**: Dynamic SQL queries must be parsed and validated via `sqlparser-rs` and Apache DataFusion `LogicalPlan` prior to execution. Direct execution of unvalidated SQL strings is prohibited.
 - **Isolated Code Execution**: Dynamic Python algorithm execution must run inside the configured `SandboxExecutor` (Linux namespace/seccomp jail or isolated sidecar worker) with zero outbound network access, read-only input Arrow buffers, and strict CPU, memory, and wall-clock timeout quotas.
 - **Airtight Provenance**: Every query execution, join hypothesis probe, and sandboxed algorithm run must persist an immutable `ProvenanceRun` record capturing input dataset snapshots, semantic rules consulted, AST/code SHA-256 digest, and output digest.
+
+## Build & Test Execution
+
+- **Always Use `Makefile` Targets**: When running builds or tests, always use the `Makefile` rather than invoking `cargo`, `npm`, or `ng` directly. Run `make help` to see all available targets.
