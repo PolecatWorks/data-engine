@@ -175,7 +175,7 @@ flowchart LR
 
 ### 7. Built-In Registration & Cross-Repo CLI Hydration Interoperability
 - `de-be` automatically registers and verifies its built-in SHA-256-pinned statistical algorithms (`builtin_stat_*`) on startup (and via `de-be hydrate-builtins`), ensuring every `stat_*` MCP tool is immediately discoverable over `POST /api/data-engine/v1/mcp`.
-- When operators run `aad-be ctl hydrate --pack core-mcp --pack statistical-analytics` (from `agent-as-data`), AAD registers `data-engine` as an `McpTool`, invokes MCP capability sync to ingest all `stat_*` schemas, and binds the hydrated `AppliedStatistician` trait, methodology skills, and `AppliedStatisticianAgent` end-to-end without manual UI clicks or hardcoded UUIDs.
+- When operators hydrate `agent-as-data` via `aad-be ctl apply -f manifests/ecosystem -R --allow-degraded-tools` (`make hydrate-ecosystem`) and run `aad-be ctl sync-tools data-engine-mcp`, AAD registers `data-engine-mcp`, ingests all `stat_*` tool schemas, and binds the hydrated `AppliedStatistician` trait, 5 statistical methodology skills, and `Applied Statistician Agent` end-to-end without manual UI clicks or hardcoded UUIDs.
 
 ---
 

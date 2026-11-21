@@ -102,7 +102,7 @@ Mathematical correctness and analytical thinking are validated separately:
    - Update [MCP & REST API PRD](../prds/data-engine-mcp-api-prd.md), [MFE Frontend & Shared Canvas PRD](../prds/mfe-frontend-canvas-prd.md), [Validation Datasets & Benchmark PRD](../prds/validation-datasets-and-benchmark-prd.md), and [PRDs Index](../prds/README.md).
 2. **`agent-as-data`**:
    - Author `spec/prds/analytics-thinking-skills-and-guardrails-prd.md` covering the `AppliedStatistician` trait, composable YAML methodology skills, and soft/strict statistical guardrails.
-   - Expand `spec/prds/cli-manifest-tool-prd.md` to add full-stack `aad-be ctl hydrate` / `apply` / `export` support for `Trait`, `McpTool` (with remote MCP sync), `Knowledge`, `Skill`, and `Agent` packs (`core-mcp`, `data-stewardship`, `statistical-analytics`, `general-workbench`) with symbolic name resolution and idempotent upserts.
+   - Extend `spec/prds/cli-manifest-tool-prd.md` (`manifests/ecosystem/` catalog) to add the `AppliedStatistician` trait, 5 statistical methodology skills, and `Applied Statistician Agent` hydrated via `aad-be ctl apply -f manifests/ecosystem -R --allow-degraded-tools` and `aad-be ctl sync-tools data-engine-mcp`.
    - Update `spec/prds/data-semantic-stewardship-and-provenance-prd.md` and `spec/prds/README.md`.
 3. **`Graphrag`**:
    - Update `spec/prds/autonomous-semantic-ontology-prd.md` to persist and return epistemic statistical traits and known confounders on `Dataset` and `Field` nodes.
