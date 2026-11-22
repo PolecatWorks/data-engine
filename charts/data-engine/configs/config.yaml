@@ -37,3 +37,10 @@ sandbox:
     - "scipy"
     - "statsmodels"
     - "pyarrow"
+
+visuals:
+  max_chart_points: 5000
+  max_topology_nodes: 250
+  max_topology_edges: 500
+  default_ego_hops: 2
+  enable_graphrag_overlay: true

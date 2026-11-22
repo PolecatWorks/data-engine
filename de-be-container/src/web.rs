@@ -1,13 +1,14 @@
 use std::path::PathBuf;
 use std::sync::Arc;
 
-use axum::extract::{Path, State};
+use axum::extract::{Path, Query, State};
 use axum::http::StatusCode;
 use axum::response::IntoResponse;
-use axum::routing::{get, post};
+use axum::routing::{get, post, put};
 use axum::{Json, Router};
 use serde::{Deserialize, Serialize};
 use thiserror::Error;
+use uuid::Uuid;
 
 use crate::analytics::{
     AnalyticsError, BuiltinAlgorithmRegistry, FieldStatisticalCatalog, StatCorrelationVifRequest,
@@ -27,6 +28,15 @@ use crate::sandbox::{
     validate_python_algorithm,
 };
 use crate::seeder::seed_validation_suite_with_options;
+use crate::topology::{
+    JoinStewardUpdateRequest, TopologyCatalog, TopologyGraphQuery, build_dataset_anatomy,
+    build_join_anatomy, build_topology_graph, export_topology_mermaid,
+};
+use crate::visuals::{
+    SavedVisualCreateRequest, SavedVisualStore, SavedVisualUpdateRequest, VisualQueryRequest,
+    VisualRecommendRequest, VisualsError, execute_visual_query, recommend_visuals,
+    recommend_visuals_from_parquet,
+};
 
 #[derive(Clone)]
 pub struct AppState {
@@ -34,6 +44,8 @@ pub struct AppState {
     pub provenance_store: ProvenanceStore,
     pub algorithm_registry: BuiltinAlgorithmRegistry,
     pub field_catalog: FieldStatisticalCatalog,
+    pub saved_visuals: SavedVisualStore,
+    pub topology_catalog: TopologyCatalog,
 }
 
 #[derive(Debug, Serialize, Deserialize, PartialEq)]
@@ -66,6 +78,10 @@ pub struct ProfileRequest {
     pub dataset_name: String,
     pub parquet_path: String,
     pub baseline_profile: Option<DatasetProfile>,
+    #[serde(default)]
+    pub source_name: Option<String>,
+    #[serde(default)]
+    pub grain_description: Option<String>,
 }
 
 #[derive(Debug, Serialize, Deserialize)]
@@ -78,12 +94,63 @@ pub struct JoinProbeRequest {
     pub right_field: String,
 }
 
+#[derive(Debug, Deserialize)]
+pub struct SavedVisualListQuery {
+    pub dataset_id: Option<String>,
+    pub chart_family: Option<String>,
+    pub q: Option<String>,
+}
+
+#[derive(Debug, Deserialize)]
+pub struct TopologyHttpQuery {
+    pub lens: Option<String>,
+    pub source_id: Option<String>,
+    pub dataset_ids: Option<String>,
+    pub epistemic_status: Option<String>,
+    pub focus_node_id: Option<String>,
+    pub hops: Option<u8>,
+    pub include_fields: Option<bool>,
+    pub include_forbidden: Option<bool>,
+    pub include_semantics: Option<bool>,
+    pub provenance_run_id: Option<String>,
+}
+
+impl From<TopologyHttpQuery> for TopologyGraphQuery {
+    fn from(q: TopologyHttpQuery) -> Self {
+        let parse_csv = |opt: Option<String>| -> Option<Vec<String>> {
+            opt.and_then(|raw| {
+                let items: Vec<String> = raw
+                    .split(',')
+                    .map(|s| s.trim().to_string())
+                    .filter(|s| !s.is_empty())
+                    .collect();
+                if items.is_empty() { None } else { Some(items) }
+            })
+        };
+        Self {
+            lens: q.lens,
+            source_id: q.source_id,
+            dataset_ids: parse_csv(q.dataset_ids),
+            epistemic_status: parse_csv(q.epistemic_status),
+            focus_node_id: q.focus_node_id,
+            hops: q.hops,
+            include_fields: q.include_fields,
+            include_forbidden: q.include_forbidden,
+            include_semantics: q.include_semantics,
+            provenance_run_id: q.provenance_run_id,
+        }
+    }
+}
+
 fn v1_routes() -> Router<AppState> {
     Router::new()
         .route("/health", get(health_handler))
+        .route("/datasets", get(datasets_list_handler))
         .route("/datasets/seed", post(seed_handler))
         .route("/datasets/profile", post(profile_handler))
         .route("/joins/probe", post(join_probe_handler))
+        .route("/join-hypotheses", get(joins_list_handler))
+        .route("/join-hypotheses/{id}", put(join_steward_handler))
         .route("/queries/validate", post(query_validate_handler))
         .route("/queries/execute", post(query_execute_handler))
         .route("/algorithms", get(algorithms_list_handler))
@@ -109,6 +176,28 @@ fn v1_routes() -> Router<AppState> {
         .route("/analytics/correlation", post(stat_correlation_handler))
         .route("/analytics/regression", post(stat_regression_handler))
         .route("/analytics/timeseries", post(stat_timeseries_handler))
+        .route("/visuals/recommend", post(visual_recommend_handler))
+        .route("/visuals/query", post(visual_query_handler))
+        .route(
+            "/visuals",
+            get(saved_visuals_list_handler).post(saved_visuals_create_handler),
+        )
+        .route(
+            "/visuals/{id}",
+            get(saved_visuals_get_handler)
+                .put(saved_visuals_update_handler)
+                .delete(saved_visuals_delete_handler),
+        )
+        .route("/topology/graph", get(topology_graph_handler))
+        .route(
+            "/topology/anatomy/dataset/{id}",
+            get(topology_dataset_anatomy_handler),
+        )
+        .route(
+            "/topology/anatomy/join/{id}",
+            get(topology_join_anatomy_handler),
+        )
+        .route("/topology/mermaid", get(topology_mermaid_handler))
         .route("/provenance/{id}", get(provenance_read_handler))
         .route("/benchmarks/run", post(benchmark_run_handler))
         .route("/mcp", post(mcp_rpc_handler))
@@ -169,10 +258,24 @@ async fn profile_handler(
         &state.config.profiler,
         req.baseline_profile.as_ref(),
     ) {
-        Ok(profile) => (
-            StatusCode::OK,
-            Json(serde_json::to_value(profile).unwrap_or_default()),
-        ),
+        Ok(profile) => {
+            let source_name = req
+                .source_name
+                .unwrap_or_else(|| "local_parquet".to_string());
+            let grain = req
+                .grain_description
+                .unwrap_or_else(|| format!("1 row per {} record", req.dataset_name));
+            let _ = state.topology_catalog.upsert_dataset(
+                source_name,
+                grain,
+                Some(req.parquet_path),
+                profile.clone(),
+            );
+            (
+                StatusCode::OK,
+                Json(serde_json::to_value(profile).unwrap_or_default()),
+            )
+        }
         Err(err) => (
             StatusCode::BAD_REQUEST,
             Json(serde_json::json!({ "error": err.to_string() })),
@@ -195,10 +298,13 @@ async fn join_probe_handler(
         &req.right_field,
         &state.config.compute,
     ) {
-        Ok(res) => (
-            StatusCode::OK,
-            Json(serde_json::to_value(res).unwrap_or_default()),
-        ),
+        Ok(res) => {
+            let _ = state.topology_catalog.upsert_join_probe(res.clone(), None, None);
+            (
+                StatusCode::OK,
+                Json(serde_json::to_value(res).unwrap_or_default()),
+            )
+        }
         Err(err) => (
             StatusCode::BAD_REQUEST,
             Json(serde_json::json!({ "error": err.to_string() })),
@@ -526,6 +632,362 @@ async fn benchmark_run_handler(
     }
 }
 
+fn map_visuals_error_status(err: &VisualsError) -> StatusCode {
+    match err {
+        VisualsError::VisualNotFound(_) | VisualsError::TopologyFocusNotFound(_) => {
+            StatusCode::NOT_FOUND
+        }
+        VisualsError::ChartPointLimitExceeded { .. }
+        | VisualsError::InvalidVisualSpec(_)
+        | VisualsError::UnsupportedRenderer(_)
+        | VisualsError::ForbiddenJoinBlocked(_)
+        | VisualsError::FanOutTrapBlocked(_)
+        | VisualsError::InvalidBinding(_) => StatusCode::BAD_REQUEST,
+        _ => StatusCode::INTERNAL_SERVER_ERROR,
+    }
+}
+
+async fn datasets_list_handler(State(state): State<AppState>) -> impl IntoResponse {
+    match state.topology_catalog.list_datasets() {
+        Ok(items) => (
+            StatusCode::OK,
+            Json(serde_json::json!({ "datasets": items })),
+        )
+            .into_response(),
+        Err(err) => (
+            map_visuals_error_status(&err),
+            Json(serde_json::json!({ "error": err.to_string() })),
+        )
+            .into_response(),
+    }
+}
+
+async fn joins_list_handler(State(state): State<AppState>) -> impl IntoResponse {
+    match state.topology_catalog.list_joins() {
+        Ok(items) => (
+            StatusCode::OK,
+            Json(serde_json::json!({ "join_hypotheses": items })),
+        )
+            .into_response(),
+        Err(err) => (
+            map_visuals_error_status(&err),
+            Json(serde_json::json!({ "error": err.to_string() })),
+        )
+            .into_response(),
+    }
+}
+
+async fn join_steward_handler(
+    State(state): State<AppState>,
+    Path(id): Path<String>,
+    Json(req): Json<JoinStewardUpdateRequest>,
+) -> impl IntoResponse {
+    match state.topology_catalog.steward_join(&id, req) {
+        Ok(rec) => (
+            StatusCode::OK,
+            Json(serde_json::to_value(rec).unwrap_or_default()),
+        )
+            .into_response(),
+        Err(err) => (
+            map_visuals_error_status(&err),
+            Json(serde_json::json!({ "error": err.to_string() })),
+        )
+            .into_response(),
+    }
+}
+
+fn execute_visual_recommend_inner(
+    state: &AppState,
+    req: &VisualRecommendRequest,
+) -> Result<crate::visuals::VisualRecommendResponse, VisualsError> {
+    let mut resp = if let Some(ref prof) = req.profile {
+        recommend_visuals(
+            prof,
+            req.parquet_path.as_deref(),
+            &state.field_catalog,
+            &state.config.visuals,
+            req.renderer.as_deref(),
+        )?
+    } else if let Some(ref pq) = req.parquet_path {
+        let ds_name = req
+            .dataset_name
+            .as_deref()
+            .unwrap_or("dataset");
+        recommend_visuals_from_parquet(
+            ds_name,
+            &PathBuf::from(pq),
+            &state.config.profiler,
+            &state.field_catalog,
+            &state.config.visuals,
+            req.renderer.as_deref(),
+        )?
+    } else if let Some(ref ds_name) = req.dataset_name {
+        let rec = state
+            .topology_catalog
+            .get_dataset(ds_name)?
+            .ok_or_else(|| VisualsError::TopologyFocusNotFound(ds_name.clone()))?;
+        recommend_visuals(
+            &rec.profile,
+            rec.parquet_path.as_deref(),
+            &state.field_catalog,
+            &state.config.visuals,
+            req.renderer.as_deref(),
+        )?
+    } else {
+        return Err(VisualsError::InvalidBinding(
+            "provide profile, parquet_path, or registered dataset_name".to_string(),
+        ));
+    };
+
+    if let Some(limit) = req.max_recommendations {
+        resp.recommendations.truncate(limit);
+    }
+    Ok(resp)
+}
+
+async fn visual_recommend_handler(
+    State(state): State<AppState>,
+    Json(req): Json<VisualRecommendRequest>,
+) -> impl IntoResponse {
+    match execute_visual_recommend_inner(&state, &req) {
+        Ok(resp) => (
+            StatusCode::OK,
+            Json(serde_json::to_value(resp).unwrap_or_default()),
+        )
+            .into_response(),
+        Err(err) => (
+            map_visuals_error_status(&err),
+            Json(serde_json::json!({ "error": err.to_string() })),
+        )
+            .into_response(),
+    }
+}
+
+fn execute_visual_query_inner(
+    state: &AppState,
+    req: &VisualQueryRequest,
+) -> Result<crate::visuals::VisualQueryResponse, VisualsError> {
+    let resolved_path = if req.data_binding.parquet_path.is_none() {
+        req.data_binding
+            .dataset_id
+            .as_deref()
+            .and_then(|id| state.topology_catalog.get_dataset(id).ok().flatten())
+            .and_then(|d| d.parquet_path)
+            .map(PathBuf::from)
+    } else {
+        None
+    };
+
+    execute_visual_query(
+        req,
+        resolved_path.as_deref(),
+        &state.config.visuals,
+        &state.provenance_store,
+    )
+}
+
+async fn visual_query_handler(
+    State(state): State<AppState>,
+    Json(req): Json<VisualQueryRequest>,
+) -> impl IntoResponse {
+    match execute_visual_query_inner(&state, &req) {
+        Ok(resp) => (
+            StatusCode::OK,
+            Json(serde_json::to_value(resp).unwrap_or_default()),
+        )
+            .into_response(),
+        Err(err) => (
+            map_visuals_error_status(&err),
+            Json(serde_json::json!({ "error": err.to_string() })),
+        )
+            .into_response(),
+    }
+}
+
+async fn saved_visuals_list_handler(
+    State(state): State<AppState>,
+    Query(q): Query<SavedVisualListQuery>,
+) -> impl IntoResponse {
+    match state.saved_visuals.list(
+        q.dataset_id.as_deref(),
+        q.chart_family.as_deref(),
+        q.q.as_deref(),
+    ) {
+        Ok(items) => (
+            StatusCode::OK,
+            Json(serde_json::json!({ "visuals": items })),
+        )
+            .into_response(),
+        Err(err) => (
+            map_visuals_error_status(&err),
+            Json(serde_json::json!({ "error": err.to_string() })),
+        )
+            .into_response(),
+    }
+}
+
+async fn saved_visuals_create_handler(
+    State(state): State<AppState>,
+    Json(req): Json<SavedVisualCreateRequest>,
+) -> impl IntoResponse {
+    match state.saved_visuals.create(req) {
+        Ok(rec) => (
+            StatusCode::CREATED,
+            Json(serde_json::to_value(rec).unwrap_or_default()),
+        )
+            .into_response(),
+        Err(err) => (
+            map_visuals_error_status(&err),
+            Json(serde_json::json!({ "error": err.to_string() })),
+        )
+            .into_response(),
+    }
+}
+
+async fn saved_visuals_get_handler(
+    State(state): State<AppState>,
+    Path(id): Path<Uuid>,
+) -> impl IntoResponse {
+    match state.saved_visuals.get(id) {
+        Ok(rec) => (
+            StatusCode::OK,
+            Json(serde_json::to_value(rec).unwrap_or_default()),
+        )
+            .into_response(),
+        Err(err) => (
+            map_visuals_error_status(&err),
+            Json(serde_json::json!({ "error": err.to_string() })),
+        )
+            .into_response(),
+    }
+}
+
+async fn saved_visuals_update_handler(
+    State(state): State<AppState>,
+    Path(id): Path<Uuid>,
+    Json(req): Json<SavedVisualUpdateRequest>,
+) -> impl IntoResponse {
+    match state.saved_visuals.update(id, req) {
+        Ok(rec) => (
+            StatusCode::OK,
+            Json(serde_json::to_value(rec).unwrap_or_default()),
+        )
+            .into_response(),
+        Err(err) => (
+            map_visuals_error_status(&err),
+            Json(serde_json::json!({ "error": err.to_string() })),
+        )
+            .into_response(),
+    }
+}
+
+async fn saved_visuals_delete_handler(
+    State(state): State<AppState>,
+    Path(id): Path<Uuid>,
+) -> impl IntoResponse {
+    match state.saved_visuals.delete(id) {
+        Ok(()) => StatusCode::NO_CONTENT.into_response(),
+        Err(err) => (
+            map_visuals_error_status(&err),
+            Json(serde_json::json!({ "error": err.to_string() })),
+        )
+            .into_response(),
+    }
+}
+
+async fn topology_graph_handler(
+    State(state): State<AppState>,
+    Query(query): Query<TopologyHttpQuery>,
+) -> impl IntoResponse {
+    let q: TopologyGraphQuery = query.into();
+    match build_topology_graph(
+        &state.topology_catalog,
+        &state.field_catalog,
+        &state.provenance_store,
+        &state.config.visuals,
+        &q,
+    )
+    .await
+    {
+        Ok(graph) => (
+            StatusCode::OK,
+            Json(serde_json::to_value(graph).unwrap_or_default()),
+        )
+            .into_response(),
+        Err(err) => (
+            map_visuals_error_status(&err),
+            Json(serde_json::json!({ "error": err.to_string() })),
+        )
+            .into_response(),
+    }
+}
+
+async fn topology_dataset_anatomy_handler(
+    State(state): State<AppState>,
+    Path(id): Path<String>,
+) -> impl IntoResponse {
+    match build_dataset_anatomy(&id, &state.topology_catalog, &state.field_catalog) {
+        Ok(anatomy) => (
+            StatusCode::OK,
+            Json(serde_json::to_value(anatomy).unwrap_or_default()),
+        )
+            .into_response(),
+        Err(err) => (
+            map_visuals_error_status(&err),
+            Json(serde_json::json!({ "error": err.to_string() })),
+        )
+            .into_response(),
+    }
+}
+
+async fn topology_join_anatomy_handler(
+    State(state): State<AppState>,
+    Path(id): Path<String>,
+) -> impl IntoResponse {
+    match build_join_anatomy(&id, &state.topology_catalog) {
+        Ok(anatomy) => (
+            StatusCode::OK,
+            Json(serde_json::to_value(anatomy).unwrap_or_default()),
+        )
+            .into_response(),
+        Err(err) => (
+            map_visuals_error_status(&err),
+            Json(serde_json::json!({ "error": err.to_string() })),
+        )
+            .into_response(),
+    }
+}
+
+async fn topology_mermaid_handler(
+    State(state): State<AppState>,
+    Query(query): Query<TopologyHttpQuery>,
+) -> impl IntoResponse {
+    let q: TopologyGraphQuery = query.into();
+    match build_topology_graph(
+        &state.topology_catalog,
+        &state.field_catalog,
+        &state.provenance_store,
+        &state.config.visuals,
+        &q,
+    )
+    .await
+    {
+        Ok(graph) => {
+            let resp = export_topology_mermaid(graph);
+            (
+                StatusCode::OK,
+                Json(serde_json::to_value(resp).unwrap_or_default()),
+            )
+                .into_response()
+        }
+        Err(err) => (
+            map_visuals_error_status(&err),
+            Json(serde_json::json!({ "error": err.to_string() })),
+        )
+            .into_response(),
+    }
+}
+
 fn mcp_tool_catalog() -> serde_json::Value {
     serde_json::json!([
         {
@@ -636,6 +1098,65 @@ fn mcp_tool_catalog() -> serde_json::Value {
                     "model": { "type": "string" }
                 }
             }
+        },
+        {
+            "name": "visual_recommend",
+            "description": "Deterministically recommend ranked Vega-Lite v5 or Apache ECharts DataVisualSpec candidates from dataset schema and profile statistics.",
+            "inputSchema": {
+                "type": "object",
+                "properties": {
+                    "dataset_name": { "type": "string" },
+                    "parquet_path": { "type": "string" },
+                    "renderer": { "type": "string", "enum": ["vega_lite", "echarts"] },
+                    "max_recommendations": { "type": "integer" }
+                }
+            }
+        },
+        {
+            "name": "visual_render_spec",
+            "description": "Validate semantic/fan-out guardrails, execute bounded aggregation or seeded sampling with ProvenanceRun tracking, and return a canvas-ready DataVisualSpec for ./DataVisualExplorerWrapper.",
+            "inputSchema": {
+                "type": "object",
+                "required": ["data_binding", "spec"],
+                "properties": {
+                    "title": { "type": "string" },
+                    "renderer": { "type": "string", "enum": ["vega_lite", "echarts"] },
+                    "chart_family": { "type": "string" },
+                    "data_binding": { "type": "object" },
+                    "spec": { "type": "object" },
+                    "sampling": { "type": "object" },
+                    "question": { "type": "string" }
+                }
+            }
+        },
+        {
+            "name": "topology_graph",
+            "description": "Return a bounded multi-layer SemanticTopologyGraph (Business Concepts/Metrics -> Datasets -> Fields, JOINABLE_WITH, FORBIDDEN_JOIN, fan-out & CONFOUNDED_BY overlays) for ./SemanticTopologyWrapper.",
+            "inputSchema": {
+                "type": "object",
+                "properties": {
+                    "lens": { "type": "string", "enum": ["semantic_3layer", "er_join", "lineage_overlay"] },
+                    "focus_node_id": { "type": "string" },
+                    "hops": { "type": "integer" },
+                    "dataset_ids": { "type": "array", "items": { "type": "string" } },
+                    "include_fields": { "type": "boolean" },
+                    "include_forbidden": { "type": "boolean" },
+                    "include_semantics": { "type": "boolean" },
+                    "provenance_run_id": { "type": "string" }
+                }
+            }
+        },
+        {
+            "name": "topology_field_anatomy",
+            "description": "Return zoomed-in nested Arrow schema anatomy for a dataset or side-by-side schema cards, type compatibility, Venn/Sankey overlap, and fan-out diagnostics for a join hypothesis.",
+            "inputSchema": {
+                "type": "object",
+                "required": ["target_kind", "target_id"],
+                "properties": {
+                    "target_kind": { "type": "string", "enum": ["dataset", "join"] },
+                    "target_id": { "type": "string" }
+                }
+            }
         }
     ])
 }
@@ -645,6 +1166,9 @@ pub enum McpError {
     #[error(transparent)]
     Analytics(#[from] AnalyticsError),
 
+    #[error(transparent)]
+    Visuals(#[from] VisualsError),
+
     #[error("invalid MCP tool arguments or payload: {0}")]
     Json(#[from] serde_json::Error),
 
@@ -652,7 +1176,7 @@ pub enum McpError {
     UnknownTool(String),
 }
 
-fn dispatch_mcp_tool(
+async fn dispatch_mcp_tool(
     state: &AppState,
     name: &str,
     args: serde_json::Value,
@@ -729,6 +1253,60 @@ fn dispatch_mcp_tool(
                 &state.field_catalog,
             )?;
             Ok(serde_json::to_value(env)?)
+        }
+        "visual_recommend" => {
+            let req: VisualRecommendRequest = serde_json::from_value(args)?;
+            let resp = execute_visual_recommend_inner(state, &req)?;
+            Ok(serde_json::to_value(resp)?)
+        }
+        "visual_render_spec" => {
+            let req: VisualQueryRequest = serde_json::from_value(args)?;
+            let resp = execute_visual_query_inner(state, &req)?;
+            Ok(serde_json::to_value(resp)?)
+        }
+        "topology_graph" => {
+            let req: TopologyGraphQuery = serde_json::from_value(args)?;
+            let graph = build_topology_graph(
+                &state.topology_catalog,
+                &state.field_catalog,
+                &state.provenance_store,
+                &state.config.visuals,
+                &req,
+            )
+            .await?;
+            Ok(serde_json::to_value(graph)?)
+        }
+        "topology_field_anatomy" => {
+            let target_kind = args
+                .get("target_kind")
+                .and_then(|v| v.as_str())
+                .ok_or_else(|| {
+                    VisualsError::InvalidVisualSpec("missing target_kind ('dataset' or 'join')".to_string())
+                })?;
+            let target_id = args
+                .get("target_id")
+                .and_then(|v| v.as_str())
+                .ok_or_else(|| {
+                    VisualsError::InvalidVisualSpec("missing target_id".to_string())
+                })?;
+            match target_kind {
+                "dataset" => {
+                    let resp = build_dataset_anatomy(
+                        target_id,
+                        &state.topology_catalog,
+                        &state.field_catalog,
+                    )?;
+                    Ok(serde_json::to_value(resp)?)
+                }
+                "join" => {
+                    let resp = build_join_anatomy(target_id, &state.topology_catalog)?;
+                    Ok(serde_json::to_value(resp)?)
+                }
+                other => Err(McpError::Visuals(VisualsError::InvalidVisualSpec(format!(
+                    "unsupported target_kind '{}'; expected 'dataset' or 'join'",
+                    other
+                )))),
+            }
         }
         other => Err(McpError::UnknownTool(other.to_string())),
     }
@@ -822,7 +1400,7 @@ async fn mcp_rpc_handler(
                 .cloned()
                 .unwrap_or_else(|| serde_json::json!({}));
 
-            let out = dispatch_mcp_tool(&state, name, args);
+            let out = dispatch_mcp_tool(&state, name, args).await;
             (StatusCode::OK, mcp_tool_result(id, out))
         }
         other => (
@@ -904,10 +1482,13 @@ mod tests {
                     default_row_count: 80,
                 },
                 sandbox,
+                visuals: crate::visuals::config::VisualsConfig::default(),
             }),
             provenance_store: ProvenanceStore::default(),
             algorithm_registry,
             field_catalog: FieldStatisticalCatalog::default(),
+            saved_visuals: SavedVisualStore::default(),
+            topology_catalog: TopologyCatalog::default(),
         }
     }
 
@@ -1233,7 +1814,7 @@ mod tests {
         let mcp_list_bytes = mcp_list_resp.into_body().collect().await.expect("body").to_bytes();
         let mcp_list_json: serde_json::Value = serde_json::from_slice(&mcp_list_bytes).expect("json");
         let tools = mcp_list_json["result"]["tools"].as_array().expect("tools array");
-        assert_eq!(tools.len(), 8);
+        assert_eq!(tools.len(), 12);
         let tool_names: Vec<&str> = tools.iter().map(|t| t["name"].as_str().unwrap()).collect();
         for expected in [
             "algorithm_browse",
@@ -1306,5 +1887,231 @@ mod tests {
             bench_json["statistical_traps"]["full_protocol_accuracy_pct"],
             100.0
         );
+    }
+
+    #[tokio::test]
+    async fn test_visuals_and_topology_http_and_mcp_endpoints() {
+        let dir = tempdir().unwrap();
+        let state = test_state();
+        let app = build_router(state);
+
+        // 1. Seed validation suite
+        let seed_payload = serde_json::json!({
+            "output_dir": dir.path().to_string_lossy(),
+            "seed": 42,
+            "row_count": 40
+        });
+        let seed_resp = app
+            .clone()
+            .oneshot(
+                Request::builder()
+                    .method("POST")
+                    .uri("/api/data-engine/v1/datasets/seed")
+                    .header("content-type", "application/json")
+                    .body(Body::from(seed_payload.to_string()))
+                    .unwrap(),
+            )
+            .await
+            .unwrap();
+        assert_eq!(seed_resp.status(), StatusCode::OK);
+
+        // 2. Profile orders & customers (populates TopologyCatalog)
+        let orders_pq = dir.path().join("sales_orders.parquet");
+        let customers_pq = dir.path().join("crm_customers.parquet");
+        for (name, path) in [("orders", &orders_pq), ("customers", &customers_pq)] {
+            let p_resp = app
+                .clone()
+                .oneshot(
+                    Request::builder()
+                        .method("POST")
+                        .uri("/api/data-engine/v1/datasets/profile")
+                        .header("content-type", "application/json")
+                        .body(Body::from(
+                            serde_json::json!({
+                                "dataset_name": name,
+                                "parquet_path": path.to_string_lossy()
+                            })
+                            .to_string(),
+                        ))
+                        .unwrap(),
+                )
+                .await
+                .unwrap();
+            assert_eq!(p_resp.status(), StatusCode::OK);
+        }
+
+        // 3. Probe join orders.cust_ref_key <-> customers.party_uuid
+        let probe_resp = app
+            .clone()
+            .oneshot(
+                Request::builder()
+                    .method("POST")
+                    .uri("/api/data-engine/v1/joins/probe")
+                    .header("content-type", "application/json")
+                    .body(Body::from(
+                        serde_json::json!({
+                            "left_dataset": "orders",
+                            "left_parquet": orders_pq.to_string_lossy(),
+                            "left_field": "cust_ref_key",
+                            "right_dataset": "customers",
+                            "right_parquet": customers_pq.to_string_lossy(),
+                            "right_field": "party_uuid"
+                        })
+                        .to_string(),
+                    ))
+                    .unwrap(),
+            )
+            .await
+            .unwrap();
+        assert_eq!(probe_resp.status(), StatusCode::OK);
+
+        // 4. Recommend visuals via REST
+        let rec_resp = app
+            .clone()
+            .oneshot(
+                Request::builder()
+                    .method("POST")
+                    .uri("/api/data-engine/v1/visuals/recommend")
+                    .header("content-type", "application/json")
+                    .body(Body::from(
+                        serde_json::json!({ "dataset_name": "orders" }).to_string(),
+                    ))
+                    .unwrap(),
+            )
+            .await
+            .unwrap();
+        assert_eq!(rec_resp.status(), StatusCode::OK);
+        let rec_json: serde_json::Value =
+            serde_json::from_slice(&rec_resp.into_body().collect().await.unwrap().to_bytes()).unwrap();
+        assert!(!rec_json["recommendations"].as_array().unwrap().is_empty());
+
+        // 5. Execute visual query via REST and verify ProvenanceRun
+        let vq_resp = app
+            .clone()
+            .oneshot(
+                Request::builder()
+                    .method("POST")
+                    .uri("/api/data-engine/v1/visuals/query")
+                    .header("content-type", "application/json")
+                    .body(Body::from(
+                        serde_json::json!({
+                            "title": "Orders Histogram",
+                            "renderer": "vega_lite",
+                            "chart_family": "histogram",
+                            "data_binding": { "kind": "dataset", "dataset_id": "orders" },
+                            "spec": { "mark": "bar", "encoding": {} }
+                        })
+                        .to_string(),
+                    ))
+                    .unwrap(),
+            )
+            .await
+            .unwrap();
+        assert_eq!(vq_resp.status(), StatusCode::OK);
+        let vq_json: serde_json::Value =
+            serde_json::from_slice(&vq_resp.into_body().collect().await.unwrap().to_bytes()).unwrap();
+        assert_eq!(vq_json["provenance"]["rendered_rows"], 80);
+        assert!(vq_json["provenance"]["provenance_run_id"].as_str().unwrap().starts_with("prov-"));
+
+        // 6. GET /topology/graph, /topology/anatomy/dataset/orders, /topology/mermaid
+        let topo_resp = app
+            .clone()
+            .oneshot(
+                Request::builder()
+                    .method("GET")
+                    .uri("/api/data-engine/v1/topology/graph?lens=semantic_3layer")
+                    .body(Body::empty())
+                    .unwrap(),
+            )
+            .await
+            .unwrap();
+        assert_eq!(topo_resp.status(), StatusCode::OK);
+        let topo_json: serde_json::Value =
+            serde_json::from_slice(&topo_resp.into_body().collect().await.unwrap().to_bytes()).unwrap();
+        assert!(topo_json["nodes"].as_array().unwrap().len() >= 4);
+
+        let anat_resp = app
+            .clone()
+            .oneshot(
+                Request::builder()
+                    .method("GET")
+                    .uri("/api/data-engine/v1/topology/anatomy/dataset/orders")
+                    .body(Body::empty())
+                    .unwrap(),
+            )
+            .await
+            .unwrap();
+        assert_eq!(anat_resp.status(), StatusCode::OK);
+
+        let mm_resp = app
+            .clone()
+            .oneshot(
+                Request::builder()
+                    .method("GET")
+                    .uri("/api/data-engine/v1/topology/mermaid?lens=er_join")
+                    .body(Body::empty())
+                    .unwrap(),
+            )
+            .await
+            .unwrap();
+        assert_eq!(mm_resp.status(), StatusCode::OK);
+
+        // 7. MCP tools/list includes all 4 new visual/topology tools & tools/call succeeds
+        let list_resp = app
+            .clone()
+            .oneshot(
+                Request::builder()
+                    .method("POST")
+                    .uri("/api/data-engine/v1/mcp")
+                    .header("content-type", "application/json")
+                    .body(Body::from(
+                        serde_json::json!({"jsonrpc":"2.0","id":10,"method":"tools/list"}).to_string(),
+                    ))
+                    .unwrap(),
+            )
+            .await
+            .unwrap();
+        let list_json: serde_json::Value =
+            serde_json::from_slice(&list_resp.into_body().collect().await.unwrap().to_bytes()).unwrap();
+        let tool_names: Vec<&str> = list_json["result"]["tools"]
+            .as_array()
+            .unwrap()
+            .iter()
+            .map(|t| t["name"].as_str().unwrap())
+            .collect();
+        for expected in [
+            "visual_recommend",
+            "visual_render_spec",
+            "topology_graph",
+            "topology_field_anatomy",
+        ] {
+            assert!(tool_names.contains(&expected), "missing MCP tool {}", expected);
+        }
+
+        let mcp_topo = app
+            .oneshot(
+                Request::builder()
+                    .method("POST")
+                    .uri("/api/data-engine/v1/mcp")
+                    .header("content-type", "application/json")
+                    .body(Body::from(
+                        serde_json::json!({
+                            "jsonrpc": "2.0",
+                            "id": 11,
+                            "method": "tools/call",
+                            "params": {
+                                "name": "topology_field_anatomy",
+                                "arguments": { "target_kind": "dataset", "target_id": "orders" }
+                            }
+                        })
+                        .to_string(),
+                    ))
+                    .unwrap(),
+            )
+            .await
+            .unwrap();
+        let mcp_json: serde_json::Value =
+            serde_json::from_slice(&mcp_topo.into_body().collect().await.unwrap().to_bytes()).unwrap();
+        assert_eq!(mcp_json["result"]["isError"], false);
     }
 }

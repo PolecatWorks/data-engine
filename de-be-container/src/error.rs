@@ -9,6 +9,7 @@ use crate::provenance::ProvenanceError;
 use crate::query_engine::QueryEngineError;
 use crate::sandbox::SandboxError;
 use crate::seeder::SeederError;
+use crate::visuals::VisualsError;
 
 #[derive(Debug, Error)]
 pub enum AppError {
@@ -38,6 +39,9 @@ pub enum AppError {
 
     #[error(transparent)]
     Benchmark(#[from] BenchmarkError),
+
+    #[error(transparent)]
+    Visuals(#[from] VisualsError),
 
     #[error("I/O error: {0}")]
     Io(#[from] std::io::Error),
