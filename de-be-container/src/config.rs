@@ -1,9 +1,11 @@
+use std::net::IpAddr;
 use std::path::Path;
 
 use figment::Figment;
 use figment::providers::{Env, Format, Yaml};
 use serde::{Deserialize, Serialize};
 use thiserror::Error;
+use tracing_subscriber::EnvFilter;
 
 #[derive(Debug, Error, PartialEq)]
 pub enum ServiceConfigError {
@@ -13,10 +15,14 @@ pub enum ServiceConfigError {
     EmptyVersion,
     #[error("service.host must not be empty")]
     EmptyHost,
+    #[error("service.host must be a valid IP address (got '{0}')")]
+    InvalidHost(String),
     #[error("service.port must be greater than 0")]
     InvalidPort,
     #[error("service.log_level must not be empty")]
     EmptyLogLevel,
+    #[error("service.log_level is not a valid tracing EnvFilter: {0}")]
+    InvalidLogLevel(String),
     #[error("service.api_prefix must start with '/', have length > 1, and not end with '/'")]
     InvalidApiPrefix,
 }
@@ -51,6 +57,8 @@ pub enum SeederConfigError {
 
 #[derive(Debug, Error, PartialEq)]
 pub enum SandboxConfigError {
+    #[error("sandbox.backend 'namespace' is not yet implemented; use 'process'")]
+    UnsupportedBackendNamespace,
     #[error("sandbox.python_binary must not be empty")]
     EmptyPythonBinary,
     #[error("sandbox.timeout_ms must be greater than 0")]
@@ -118,12 +126,17 @@ impl ServiceConfig {
         if self.host.trim().is_empty() {
             return Err(ServiceConfigError::EmptyHost);
         }
+        if self.host.parse::<IpAddr>().is_err() {
+            return Err(ServiceConfigError::InvalidHost(self.host.clone()));
+        }
         if self.port == 0 {
             return Err(ServiceConfigError::InvalidPort);
         }
         if self.log_level.trim().is_empty() {
             return Err(ServiceConfigError::EmptyLogLevel);
         }
+        EnvFilter::try_new(&self.log_level)
+            .map_err(|err| ServiceConfigError::InvalidLogLevel(err.to_string()))?;
         let prefix = self.api_prefix.trim();
         if !prefix.starts_with('/') || prefix.len() <= 1 || prefix.ends_with('/') {
             return Err(ServiceConfigError::InvalidApiPrefix);
@@ -236,6 +249,9 @@ pub struct SandboxConfig {
 
 impl SandboxConfig {
     pub fn validate(&self) -> Result<(), SandboxConfigError> {
+        if self.backend == SandboxBackend::Namespace {
+            return Err(SandboxConfigError::UnsupportedBackendNamespace);
+        }
         if self.python_binary.trim().is_empty() {
             return Err(SandboxConfigError::EmptyPythonBinary);
         }
@@ -495,5 +511,73 @@ sandbox:
 
         cfg.mcp.enabled = false;
         assert!(cfg.validate().is_ok());
+    }
+
+    #[test]
+    fn test_sandbox_config_rejects_namespace_backend() {
+        let mut tmp = NamedTempFile::new().expect("create temp yaml");
+        tmp.write_all(sample_yaml().as_bytes()).expect("write yaml");
+        let mut cfg = AppConfig::load(tmp.path()).expect("load base");
+
+        cfg.sandbox.backend = SandboxBackend::Namespace;
+        assert!(matches!(
+            cfg.validate(),
+            Err(ConfigError::Sandbox(
+                SandboxConfigError::UnsupportedBackendNamespace
+            ))
+        ));
+    }
+
+    #[test]
+    fn test_service_config_rejects_invalid_log_level() {
+        let mut tmp = NamedTempFile::new().expect("create temp yaml");
+        tmp.write_all(sample_yaml().as_bytes()).expect("write yaml");
+        let mut cfg = AppConfig::load(tmp.path()).expect("load base");
+
+        cfg.service.log_level = "de_be=debug,tower_http=info".to_string();
+        assert!(cfg.validate().is_ok());
+
+        cfg.service.log_level = "   ".to_string();
+        assert!(matches!(
+            cfg.validate(),
+            Err(ConfigError::Service(ServiceConfigError::EmptyLogLevel))
+        ));
+
+        cfg.service.log_level = "de_be[unclosed".to_string();
+        assert!(matches!(
+            cfg.validate(),
+            Err(ConfigError::Service(ServiceConfigError::InvalidLogLevel(_)))
+        ));
+    }
+
+    #[test]
+    fn test_service_config_rejects_invalid_host() {
+        let mut tmp = NamedTempFile::new().expect("create temp yaml");
+        tmp.write_all(sample_yaml().as_bytes()).expect("write yaml");
+        let mut cfg = AppConfig::load(tmp.path()).expect("load base");
+
+        cfg.service.host = "0.0.0.0".to_string();
+        assert!(cfg.validate().is_ok());
+
+        cfg.service.host = "::1".to_string();
+        assert!(cfg.validate().is_ok());
+
+        cfg.service.host = "   ".to_string();
+        assert!(matches!(
+            cfg.validate(),
+            Err(ConfigError::Service(ServiceConfigError::EmptyHost))
+        ));
+
+        cfg.service.host = "not-a-valid-ip".to_string();
+        assert!(matches!(
+            cfg.validate(),
+            Err(ConfigError::Service(ServiceConfigError::InvalidHost(ref h))) if h == "not-a-valid-ip"
+        ));
+
+        cfg.service.host = "999.999.999.999".to_string();
+        assert!(matches!(
+            cfg.validate(),
+            Err(ConfigError::Service(ServiceConfigError::InvalidHost(_)))
+        ));
     }
 }

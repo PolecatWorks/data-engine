@@ -276,12 +276,17 @@ async fn profile_handler(
             let grain = req
                 .grain_description
                 .unwrap_or_else(|| format!("1 row per {} record", req.dataset_name));
-            let _ = state.topology_catalog.upsert_dataset(
+            if let Err(err) = state.topology_catalog.upsert_dataset(
                 source_name,
                 grain,
                 Some(req.parquet_path),
                 profile.clone(),
-            );
+            ) {
+                return (
+                    map_visuals_error_status(&err),
+                    Json(serde_json::json!({ "error": err.to_string() })),
+                );
+            }
             (
                 StatusCode::OK,
                 Json(serde_json::to_value(profile).unwrap_or_default()),
@@ -310,7 +315,15 @@ async fn join_probe_handler(
         &state.config.compute,
     ) {
         Ok(res) => {
-            let _ = state.topology_catalog.upsert_join_probe(res.clone(), None, None);
+            if let Err(err) = state
+                .topology_catalog
+                .upsert_join_probe(res.clone(), None, None)
+            {
+                return (
+                    map_visuals_error_status(&err),
+                    Json(serde_json::json!({ "error": err.to_string() })),
+                );
+            }
             (
                 StatusCode::OK,
                 Json(serde_json::to_value(res).unwrap_or_default()),
@@ -779,12 +792,15 @@ pub(crate) fn execute_visual_query_inner(
     req: &VisualQueryRequest,
 ) -> Result<crate::visuals::VisualQueryResponse, VisualsError> {
     let resolved_path = if req.data_binding.parquet_path.is_none() {
-        req.data_binding
-            .dataset_id
-            .as_deref()
-            .and_then(|id| state.topology_catalog.get_dataset(id).ok().flatten())
-            .and_then(|d| d.parquet_path)
-            .map(PathBuf::from)
+        if let Some(id) = req.data_binding.dataset_id.as_deref() {
+            state
+                .topology_catalog
+                .get_dataset(id)?
+                .and_then(|d| d.parquet_path)
+                .map(PathBuf::from)
+        } else {
+            None
+        }
     } else {
         None
     };

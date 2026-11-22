@@ -25,7 +25,7 @@ use tracing_subscriber::EnvFilter;
 use crate::analytics::{BuiltinAlgorithmRegistry, FieldStatisticalCatalog};
 use crate::benchmark::run_ablation_benchmark;
 use crate::cli::{Cli, Commands};
-use crate::config::AppConfig;
+use crate::config::{AppConfig, ConfigError, ServiceConfigError};
 use crate::error::AppError;
 use crate::join_probe::probe_join;
 use crate::mcp::server::DataEngineMcpServer;
@@ -41,16 +41,20 @@ async fn main() -> Result<(), AppError> {
     let cli = Cli::parse();
     let config = AppConfig::load(&cli.config)?;
 
-    let filter = EnvFilter::try_new(&config.service.log_level)
-        .unwrap_or_else(|_| EnvFilter::new("info"));
+    let filter = EnvFilter::try_new(&config.service.log_level).map_err(|err| {
+        ConfigError::Service(ServiceConfigError::InvalidLogLevel(err.to_string()))
+    })?;
     let _ = tracing_subscriber::fmt().with_env_filter(filter).try_init();
 
     match cli.command {
         Commands::Preflight => {
+            let registry = BuiltinAlgorithmRegistry::default();
+            let hydrated = registry.hydrate_builtins(&config.sandbox)?;
             info!(
                 service = %config.service.name,
                 version = %config.service.version,
-                "Preflight configuration check passed"
+                hydrated_builtins = hydrated.len(),
+                "Preflight configuration and sandbox runtime readiness check passed"
             );
             Ok(())
         }

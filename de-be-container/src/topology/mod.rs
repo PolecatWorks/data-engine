@@ -961,7 +961,11 @@ pub async fn build_topology_graph(
                         });
                     }
                 }
-                Err(_) => {
+                Err(err) => {
+                    tracing::warn!(
+                        error = %err,
+                        "GraphRAG overlay fetch failed; returning topology in degraded mode"
+                    );
                     graphrag_overlay_degraded = true;
                 }
             }
