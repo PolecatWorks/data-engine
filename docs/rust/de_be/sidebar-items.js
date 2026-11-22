@@ -1,1 +1,1 @@
-window.SIDEBAR_ITEMS = {"fn":["main"],"mod":["analytics","benchmark","cli","config","error","join_probe","profiler","provenance","query_engine","sandbox","seeder","topology","visuals","web"]};
+window.SIDEBAR_ITEMS = {"fn":["main"],"mod":["analytics","benchmark","cli","config","error","join_probe","mcp","profiler","provenance","query_engine","sandbox","seeder","topology","visuals","web"]};
