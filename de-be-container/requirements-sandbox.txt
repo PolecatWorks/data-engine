@@ -1,0 +1,7 @@
+# Pinned scientific Python dependencies for Data-Engine's isolated statistical sandbox (Spec 10)
+# All packages provide prebuilt manylinux wheels for linux/amd64 and linux/arm64.
+numpy==2.2.3
+pandas==2.2.3
+scipy==1.15.2
+statsmodels==0.14.4
+pyarrow==19.0.1

@@ -1,3 +1,4 @@
+pub mod analytics;
 pub mod benchmark;
 pub mod cli;
 pub mod config;
@@ -18,6 +19,7 @@ use tokio::net::TcpListener;
 use tracing::info;
 use tracing_subscriber::EnvFilter;
 
+use crate::analytics::{BuiltinAlgorithmRegistry, FieldStatisticalCatalog};
 use crate::benchmark::run_ablation_benchmark;
 use crate::cli::{Cli, Commands};
 use crate::config::AppConfig;
@@ -25,7 +27,7 @@ use crate::error::AppError;
 use crate::join_probe::probe_join;
 use crate::profiler::{DatasetProfile, profile_parquet_dataset};
 use crate::provenance::ProvenanceStore;
-use crate::seeder::seed_validation_suite;
+use crate::seeder::seed_validation_suite_with_options;
 use crate::web::{AppState, build_router};
 
 #[tokio::main]
@@ -49,8 +51,21 @@ async fn main() -> Result<(), AppError> {
         Commands::SeedValidationSuite(args) => {
             let seed = args.seed.unwrap_or(config.seeder.default_seed);
             let row_count = args.row_count.unwrap_or(config.seeder.default_row_count);
-            let manifest = seed_validation_suite(seed, row_count, &args.output_dir)?;
+            let manifest = seed_validation_suite_with_options(
+                seed,
+                row_count,
+                &args.output_dir,
+                args.include_stat_traps,
+            )?;
             let out = serde_json::to_string_pretty(&manifest)
+                .map_err(crate::seeder::SeederError::from)?;
+            println!("{}", out);
+            Ok(())
+        }
+        Commands::HydrateBuiltins => {
+            let registry = BuiltinAlgorithmRegistry::default();
+            let hydrated = registry.hydrate_builtins(&config.sandbox)?;
+            let out = serde_json::to_string_pretty(&hydrated)
                 .map_err(crate::seeder::SeederError::from)?;
             println!("{}", out);
             Ok(())
@@ -111,10 +126,18 @@ async fn main() -> Result<(), AppError> {
         }
         Commands::Start => {
             let bind_addr = format!("{}:{}", config.service.host, config.service.port);
-            info!(%bind_addr, "Starting data-engine backend HTTP service");
+            let algorithm_registry = BuiltinAlgorithmRegistry::default();
+            let hydrated = algorithm_registry.hydrate_builtins(&config.sandbox)?;
+            info!(
+                %bind_addr,
+                hydrated_builtins = hydrated.len(),
+                "Starting data-engine backend HTTP service"
+            );
             let state = AppState {
                 config: Arc::new(config),
                 provenance_store: ProvenanceStore::default(),
+                algorithm_registry,
+                field_catalog: FieldStatisticalCatalog::default(),
             };
             let router = build_router(state);
             let listener = TcpListener::bind(&bind_addr).await?;

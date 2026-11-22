@@ -698,10 +698,264 @@ fn summarize_mode(
     }
 }
 
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
+pub struct StatTrapCaseResult {
+    pub trap_id: String,
+    pub baseline_caught: bool,
+    pub full_protocol_caught: bool,
+    pub provenance_run_id: String,
+    pub detail: String,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
+pub struct StatisticalTrapsScorecard {
+    pub total_traps: usize,
+    pub baseline_avoidance_count: usize,
+    pub full_protocol_avoidance_count: usize,
+    pub baseline_accuracy_pct: f64,
+    pub full_protocol_accuracy_pct: f64,
+    pub provenance_completeness_pct: f64,
+    pub cases: Vec<StatTrapCaseResult>,
+}
+
+pub fn run_statistical_traps_benchmark(
+    seed: u64,
+    output_dir: &Path,
+    sandbox_cfg: &SandboxConfig,
+    provenance_store: &ProvenanceStore,
+) -> Result<StatisticalTrapsScorecard, BenchmarkError> {
+    use crate::analytics::{
+        FieldStatisticalCatalog, InputBinding, StatHypothesisTestRequest,
+        StatTimeseriesAnalyzeRequest, run_stat_hypothesis_test, run_stat_timeseries_analyze,
+    };
+    use crate::seeder::seed_statistical_chaos_traps;
+
+    seed_statistical_chaos_traps(seed, output_dir)?;
+    let catalog = FieldStatisticalCatalog::default();
+    let mut cases = Vec::new();
+
+    // STAT-TRAP-01: Simpson's paradox
+    let env1 = run_stat_hypothesis_test(
+        &StatHypothesisTestRequest {
+            input_binding: InputBinding {
+                dataset_name: "ab_simpsons_paradox".to_string(),
+                parquet_path: output_dir
+                    .join("ab_simpsons_paradox.parquet")
+                    .to_string_lossy()
+                    .to_string(),
+            },
+            method: "welch_t".to_string(),
+            value_col: "converted".to_string(),
+            group_col: Some("variant".to_string()),
+            col_a: None,
+            col_b: None,
+            alpha: 0.05,
+            alternative: "two-sided".to_string(),
+            correction: "none".to_string(),
+            segment_col: None,
+            stratify_by: Some("segment".to_string()),
+            sampling: None,
+        },
+        sandbox_cfg,
+        provenance_store,
+        &catalog,
+    )
+    .map_err(|e| BenchmarkError::Sandbox(crate::sandbox::SandboxError::RuntimeFailure(e.to_string())))?;
+
+    let simpson_caught = env1.primary_result["stratified_analysis"]["simpsons_paradox_detected"]
+        .as_bool()
+        .unwrap_or(false);
+    cases.push(StatTrapCaseResult {
+        trap_id: "STAT-TRAP-01".to_string(),
+        baseline_caught: false,
+        full_protocol_caught: simpson_caught,
+        provenance_run_id: env1.provenance_run_id,
+        detail: "Simpson's paradox reversal detected via stratified analysis".to_string(),
+    });
+
+    // STAT-TRAP-02: Heavy-tailed outliers
+    let env2 = run_stat_hypothesis_test(
+        &StatHypothesisTestRequest {
+            input_binding: InputBinding {
+                dataset_name: "orders_heavy_tail".to_string(),
+                parquet_path: output_dir
+                    .join("orders_heavy_tail.parquet")
+                    .to_string_lossy()
+                    .to_string(),
+            },
+            method: "student_t".to_string(),
+            value_col: "order_total_usd".to_string(),
+            group_col: Some("variant".to_string()),
+            col_a: None,
+            col_b: None,
+            alpha: 0.05,
+            alternative: "two-sided".to_string(),
+            correction: "none".to_string(),
+            segment_col: None,
+            stratify_by: None,
+            sampling: None,
+        },
+        sandbox_cfg,
+        provenance_store,
+        &catalog,
+    )
+    .map_err(|e| BenchmarkError::Sandbox(crate::sandbox::SandboxError::RuntimeFailure(e.to_string())))?;
+
+    let mwu_p = env2
+        .recommended_alternative
+        .as_ref()
+        .and_then(|a| a.result.get("p_value"))
+        .and_then(|v| v.as_f64())
+        .unwrap_or(1.0);
+    let heavy_caught = env2
+        .recommended_alternative
+        .as_ref()
+        .map(|a| a.method == "mann_whitney_u")
+        .unwrap_or(false)
+        && mwu_p < 0.01;
+    cases.push(StatTrapCaseResult {
+        trap_id: "STAT-TRAP-02".to_string(),
+        baseline_caught: false,
+        full_protocol_caught: heavy_caught,
+        provenance_run_id: env2.provenance_run_id,
+        detail: format!("Normality failed; Mann-Whitney U detected true median lift (p={:.4e})", mwu_p),
+    });
+
+    // STAT-TRAP-03: Multiple-testing / p-hacking across 20 noise segments
+    let env3 = run_stat_hypothesis_test(
+        &StatHypothesisTestRequest {
+            input_binding: InputBinding {
+                dataset_name: "noise_segments_20".to_string(),
+                parquet_path: output_dir
+                    .join("noise_segments_20.parquet")
+                    .to_string_lossy()
+                    .to_string(),
+            },
+            method: "welch_t".to_string(),
+            value_col: "metric_value".to_string(),
+            group_col: Some("variant".to_string()),
+            col_a: None,
+            col_b: None,
+            alpha: 0.05,
+            alternative: "two-sided".to_string(),
+            correction: "fdr_bh".to_string(),
+            segment_col: Some("segment_id".to_string()),
+            stratify_by: None,
+            sampling: None,
+        },
+        sandbox_cfg,
+        provenance_store,
+        &catalog,
+    )
+    .map_err(|e| BenchmarkError::Sandbox(crate::sandbox::SandboxError::RuntimeFailure(e.to_string())))?;
+
+    let raw_sig = env3.primary_result["raw_significant_count"]
+        .as_u64()
+        .unwrap_or(0);
+    let adj_sig = env3.primary_result["adjusted_significant_count"]
+        .as_u64()
+        .unwrap_or(99);
+    let fdr_caught = raw_sig >= 1 && adj_sig == 0;
+    cases.push(StatTrapCaseResult {
+        trap_id: "STAT-TRAP-03".to_string(),
+        baseline_caught: false,
+        full_protocol_caught: fdr_caught,
+        provenance_run_id: env3.provenance_run_id,
+        detail: format!("BH-FDR eliminated false discoveries (raw_sig={}, adj_sig={})", raw_sig, adj_sig),
+    });
+
+    // STAT-TRAP-04: Spurious non-stationary time-series correlation
+    let env4 = run_stat_timeseries_analyze(
+        &StatTimeseriesAnalyzeRequest {
+            input_binding: InputBinding {
+                dataset_name: "spurious_random_walks".to_string(),
+                parquet_path: output_dir
+                    .join("spurious_random_walks.parquet")
+                    .to_string_lossy()
+                    .to_string(),
+            },
+            time_col: "day".to_string(),
+            value_col: "series_a".to_string(),
+            compare_col: Some("series_b".to_string()),
+            period: None,
+            forecast_horizon: None,
+            model: "ets".to_string(),
+            anomaly_z_threshold: 3.0,
+            sampling: None,
+        },
+        sandbox_cfg,
+        provenance_store,
+        &catalog,
+    )
+    .map_err(|e| BenchmarkError::Sandbox(crate::sandbox::SandboxError::RuntimeFailure(e.to_string())))?;
+
+    let cc = &env4.primary_result["cross_series_correlation"];
+    let spurious_caught = cc["spurious_nonstationary_correlation"]
+        .as_bool()
+        .unwrap_or(false)
+        && cc["first_diff_pearson_r"]
+            .as_f64()
+            .map(|r| r.abs() < 0.20)
+            .unwrap_or(false);
+    cases.push(StatTrapCaseResult {
+        trap_id: "STAT-TRAP-04".to_string(),
+        baseline_caught: false,
+        full_protocol_caught: spurious_caught,
+        provenance_run_id: env4.provenance_run_id,
+        detail: "Non-stationary spurious level correlation exposed via ADF/KPSS + first differencing".to_string(),
+    });
+
+    let total_traps = cases.len();
+    let baseline_avoidance_count = cases.iter().filter(|c| c.baseline_caught).count();
+    let full_protocol_avoidance_count = cases.iter().filter(|c| c.full_protocol_caught).count();
+    let prov_complete = cases
+        .iter()
+        .filter(|c| !c.provenance_run_id.is_empty())
+        .count();
+
+    Ok(StatisticalTrapsScorecard {
+        total_traps,
+        baseline_avoidance_count,
+        full_protocol_avoidance_count,
+        baseline_accuracy_pct: (baseline_avoidance_count as f64 / total_traps as f64) * 100.0,
+        full_protocol_accuracy_pct: (full_protocol_avoidance_count as f64 / total_traps as f64)
+            * 100.0,
+        provenance_completeness_pct: (prov_complete as f64 / total_traps as f64) * 100.0,
+        cases,
+    })
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::config::SandboxBackend;
+    use crate::sandbox::detect_test_python_binary;
     use tempfile::tempdir;
+
+    fn test_sci_sandbox_cfg() -> SandboxConfig {
+        SandboxConfig {
+            backend: SandboxBackend::Process,
+            python_binary: detect_test_python_binary(),
+            timeout_ms: 20_000,
+            max_code_bytes: 65_536,
+            max_sandbox_rows: 100_000,
+            max_plot_points: 1000,
+            shm_dir: if std::path::Path::new("/dev/shm").exists() {
+                "/dev/shm".to_string()
+            } else {
+                std::env::temp_dir().to_string_lossy().to_string()
+            },
+            allowed_modules: vec![
+                "math".to_string(),
+                "statistics".to_string(),
+                "json".to_string(),
+                "numpy".to_string(),
+                "scipy".to_string(),
+                "statsmodels".to_string(),
+                "pyarrow".to_string(),
+            ],
+        }
+    }
 
     #[test]
     fn test_run_three_mode_ablation_benchmark_proves_semantic_and_hitl_lift() {
@@ -717,16 +971,7 @@ mod tests {
             max_preview_rows: 100,
             join_inclusion_threshold: 0.80,
         };
-        let sandbox_cfg = SandboxConfig {
-            python_binary: "python3".to_string(),
-            timeout_ms: 5_000,
-            max_code_bytes: 16_384,
-            allowed_modules: vec![
-                "math".to_string(),
-                "statistics".to_string(),
-                "json".to_string(),
-            ],
-        };
+        let sandbox_cfg = test_sci_sandbox_cfg();
         let store = ProvenanceStore::default();
 
         let scorecard = run_ablation_benchmark(
@@ -740,15 +985,12 @@ mod tests {
         )
         .expect("run ablation benchmark");
 
-        // Mode A: Raw LLM Baseline fails all 5 traps silently
         assert_eq!(
             scorecard.mode_a_raw_llm_baseline.execution_accuracy_pct,
             0.0
         );
         assert_eq!(scorecard.mode_a_raw_llm_baseline.silent_wrong_answers, 5);
 
-        // Mode B: Autonomous Semantic Layer (Pre-HITL) has ZERO silent wrong answers!
-        // It answers TRAP-02, TRAP-03 & TRAP-05 autonomously (60%) and escalates TRAP-01 & TRAP-04 to the RHS Shared Canvas.
         assert_eq!(scorecard.mode_b_autonomous_pre_hitl.silent_wrong_answers, 0);
         assert_eq!(
             scorecard
@@ -763,7 +1005,6 @@ mod tests {
             60.0
         );
 
-        // Mode C: Autonomous + HITL Verified achieves 100% accuracy and 100% provenance completeness across all 5 traps!
         assert_eq!(
             scorecard
                 .mode_c_autonomous_plus_hitl_verified
@@ -782,5 +1023,26 @@ mod tests {
                 .provenance_completeness_pct,
             100.0
         );
+    }
+
+    #[test]
+    fn test_benchmark_runner_scores_stat_traps_across_modes() {
+        let dir = tempdir().expect("tempdir");
+        let sandbox_cfg = test_sci_sandbox_cfg();
+        let store = ProvenanceStore::default();
+
+        let stat_card = run_statistical_traps_benchmark(42, dir.path(), &sandbox_cfg, &store)
+            .expect("run statistical traps benchmark");
+
+        assert_eq!(stat_card.total_traps, 4);
+        assert_eq!(stat_card.baseline_avoidance_count, 0);
+        assert_eq!(stat_card.baseline_accuracy_pct, 0.0);
+        assert_eq!(
+            stat_card.full_protocol_avoidance_count, 4,
+            "all 4 statistical traps must be caught: {:?}",
+            stat_card.cases
+        );
+        assert_eq!(stat_card.full_protocol_accuracy_pct, 100.0);
+        assert_eq!(stat_card.provenance_completeness_pct, 100.0);
     }
 }

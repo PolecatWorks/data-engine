@@ -1,5 +1,6 @@
 use thiserror::Error;
 
+use crate::analytics::AnalyticsError;
 use crate::benchmark::BenchmarkError;
 use crate::config::ConfigError;
 use crate::join_probe::JoinProbeError;
@@ -31,6 +32,9 @@ pub enum AppError {
 
     #[error(transparent)]
     Sandbox(#[from] SandboxError),
+
+    #[error(transparent)]
+    Analytics(#[from] AnalyticsError),
 
     #[error(transparent)]
     Benchmark(#[from] BenchmarkError),
