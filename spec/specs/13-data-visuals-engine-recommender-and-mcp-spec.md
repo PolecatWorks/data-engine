@@ -1,6 +1,6 @@
 # Spec 13: Data Visuals Engine, Schema-Driven Chart Recommender, Bounded Query Materialization & MCP Tools (`src/visuals/`)
 
-- **Status**: `draft`
+- **Status**: `complete`
 - **Derived From**: [09. Data Visualizations & Semantic Relationship Topology PRD](../prds/data-visuals-and-semantic-topology-prd.md), [04. MCP Server & REST API PRD](../prds/data-engine-mcp-api-prd.md)
 - **Dependencies**: [03-arrow-profiler-and-drift-detector-spec.md](./03-arrow-profiler-and-drift-detector-spec.md), [05-query-validator-and-provenance-spec.md](./05-query-validator-and-provenance-spec.md), [08-configurable-api-prefix-and-virtualservice-spec.md](./08-configurable-api-prefix-and-virtualservice-spec.md)
 

@@ -84,6 +84,9 @@ pub enum ConfigError {
 
     #[error(transparent)]
     Sandbox(#[from] SandboxConfigError),
+
+    #[error(transparent)]
+    Visuals(#[from] crate::visuals::config::VisualsConfigError),
 }
 
 fn default_api_prefix() -> String {
@@ -259,6 +262,8 @@ pub struct AppConfig {
     pub compute: ComputeConfig,
     pub seeder: SeederConfig,
     pub sandbox: SandboxConfig,
+    #[serde(default)]
+    pub visuals: crate::visuals::config::VisualsConfig,
 }
 
 impl AppConfig {
@@ -278,6 +283,7 @@ impl AppConfig {
         self.compute.validate()?;
         self.seeder.validate()?;
         self.sandbox.validate()?;
+        self.visuals.validate()?;
         Ok(())
     }
 }

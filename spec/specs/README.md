@@ -37,8 +37,8 @@ This directory contains the detailed technical specifications and Test-Driven De
 
 ## Increment 7: Data Visualizations & Semantic Relationship Topology
 
-* [13. Data Visuals Engine, Schema-Driven Chart Recommender, Bounded Query Materialization & MCP Tools (`src/visuals/`)](./13-data-visuals-engine-recommender-and-mcp-spec.md) - `draft`
-* [14. Semantic & Structural Topology Graph Engine, Field Anatomy API & MCP Tools (`src/topology/`)](./14-semantic-topology-graph-and-field-anatomy-spec.md) - `draft`
+* [13. Data Visuals Engine, Schema-Driven Chart Recommender, Bounded Query Materialization & MCP Tools (`src/visuals/`)](./13-data-visuals-engine-recommender-and-mcp-spec.md) - `complete`
+* [14. Semantic & Structural Topology Graph Engine, Field Anatomy API & MCP Tools (`src/topology/`)](./14-semantic-topology-graph-and-field-anatomy-spec.md) - `complete`
 * [15. `./DataVisualExplorerWrapper` & `./SemanticTopologyWrapper` Angular Native Federation Canvas Remotes (`de-fe-container`)](./15-data-visual-explorer-and-semantic-topology-canvas-spec.md) - `draft`
 
 ## Increment 8: Keycloak JWKS Authentication & Claims Gatekeeper

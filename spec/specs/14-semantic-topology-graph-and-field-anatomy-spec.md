@@ -1,6 +1,6 @@
 # Spec 14: Semantic & Structural Topology Graph Engine, Field Anatomy API & MCP Tools (`src/topology/`)
 
-- **Status**: `draft`
+- **Status**: `complete`
 - **Derived From**: [09. Data Visualizations & Semantic Relationship Topology PRD](../prds/data-visuals-and-semantic-topology-prd.md), [04. MCP Server & REST API PRD](../prds/data-engine-mcp-api-prd.md)
 - **Dependencies**: [03-arrow-profiler-and-drift-detector-spec.md](./03-arrow-profiler-and-drift-detector-spec.md), [04-empirical-join-probe-spec.md](./04-empirical-join-probe-spec.md), [13-data-visuals-engine-recommender-and-mcp-spec.md](./13-data-visuals-engine-recommender-and-mcp-spec.md), Graphrag Spec 25 (`GET /ontology/subgraph`)
 

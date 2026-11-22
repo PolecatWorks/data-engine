@@ -9,6 +9,8 @@ pub mod provenance;
 pub mod query_engine;
 pub mod sandbox;
 pub mod seeder;
+pub mod topology;
+pub mod visuals;
 pub mod web;
 
 use std::fs;
@@ -28,6 +30,8 @@ use crate::join_probe::probe_join;
 use crate::profiler::{DatasetProfile, profile_parquet_dataset};
 use crate::provenance::ProvenanceStore;
 use crate::seeder::seed_validation_suite_with_options;
+use crate::topology::TopologyCatalog;
+use crate::visuals::SavedVisualStore;
 use crate::web::{AppState, build_router};
 
 #[tokio::main]
@@ -138,6 +142,8 @@ async fn main() -> Result<(), AppError> {
                 provenance_store: ProvenanceStore::default(),
                 algorithm_registry,
                 field_catalog: FieldStatisticalCatalog::default(),
+                saved_visuals: SavedVisualStore::default(),
+                topology_catalog: TopologyCatalog::default(),
             };
             let router = build_router(state);
             let listener = TcpListener::bind(&bind_addr).await?;
