@@ -63,7 +63,12 @@ flowchart LR
   - `max_query_runtime_seconds: u64` (caps per-request query/sandbox timeout)
   - `allowed_catalogs: Vec<String>` (enforced before DataFusion/connector access)
 
-### 4.2 Public vs Protected Endpoints
+### 4.2 Ecosystem Realm Groups Mapping
+Roles are assigned to portal users through Keycloak realm groups:
+- **`DataAgentAdmins`**: Maps `profile:run`, `query:run`, `compute:execute`, and `dataset:admin`.
+- **`DataAgentUsers`**: Maps `profile:run`, `query:run`, and `compute:execute`.
+
+### 4.3 Public vs Protected Endpoints
 - **Public**: HAMS health/metrics endpoints (`/health`, `/ready`, `/metrics` on `:8079` and `/api/v1/health`).
 - **Protected**: All `/api/v1/...`, `/api/data-engine/v1/...`, and `/mcp/sse` routes require a valid Bearer token and the corresponding role.
 
