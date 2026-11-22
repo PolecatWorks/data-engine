@@ -1,6 +1,6 @@
 # Spec 10: Scientific Python Sandbox Runtime, Zero-Copy Arrow IPC Staging & Built-In Algorithm Registry
 
-- **Status**: `draft`
+- **Status**: `complete`
 - **Derived From**: [08. Statistical Analytics Engine PRD](../prds/statistical-analytics-engine-prd.md), [03. Federated Compute, Code Sandbox & Provenance PRD](../prds/compute-sandbox-provenance-prd.md)
 - **Dependencies**: [07-python-sandbox-and-trap-05-spec.md](./07-python-sandbox-and-trap-05-spec.md), [08-configurable-api-prefix-and-virtualservice-spec.md](./08-configurable-api-prefix-and-virtualservice-spec.md)
 

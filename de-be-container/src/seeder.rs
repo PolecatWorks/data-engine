@@ -48,6 +48,8 @@ pub struct GroundTruthManifest {
     pub wave3_payment_mean_cents: f64,
     pub expected_trap_05_anomaly_count: usize,
     pub planted_traps: Vec<PlantedTrapSpec>,
+    #[serde(default)]
+    pub stat_traps: Vec<PlantedTrapSpec>,
 }
 
 /// Simple deterministic SplitMix64 RNG so our test suite has zero platform-specific RNG variance.
@@ -70,6 +72,18 @@ impl DeterministicRng {
 
     fn next_usize(&mut self, bound: usize) -> usize {
         (self.next_u64() as usize) % bound
+    }
+
+    fn next_f64(&mut self) -> f64 {
+        // Uniform in (0, 1) strictly avoiding 0.0 for Box-Muller log
+        let bits = (self.next_u64() >> 11) as f64;
+        (bits + 1.0) / ((1u64 << 53) as f64 + 1.0)
+    }
+
+    fn next_standard_normal(&mut self) -> f64 {
+        let u1 = self.next_f64();
+        let u2 = self.next_f64();
+        (-2.0 * u1.ln()).sqrt() * (2.0 * std::f64::consts::PI * u2).cos()
     }
 }
 
@@ -450,12 +464,319 @@ pub fn seed_validation_suite(
                 description: "Detect outlier orders (z_score > 3.0) and composite churn risk via sandboxed Python algorithm.".to_string(),
             },
         ],
+        stat_traps: Vec::new(),
     };
 
     let manifest_path: PathBuf = output_dir.join("ground_truth_manifest.json");
     let manifest_json = serde_json::to_string_pretty(&manifest)?;
     fs::write(manifest_path, manifest_json)?;
 
+    Ok(manifest)
+}
+
+fn sample_mean_and_var(xs: &[f64]) -> (f64, f64) {
+    let n = xs.len() as f64;
+    let mean = xs.iter().sum::<f64>() / n;
+    let var = xs.iter().map(|v| (v - mean).powi(2)).sum::<f64>() / (n - 1.0).max(1.0);
+    (mean, var)
+}
+
+fn pearson_r(a: &[f64], b: &[f64]) -> f64 {
+    let (ma, _) = sample_mean_and_var(a);
+    let (mb, _) = sample_mean_and_var(b);
+    let mut num = 0.0;
+    let mut da = 0.0;
+    let mut db = 0.0;
+    for (x, y) in a.iter().zip(b.iter()) {
+        let dx = x - ma;
+        let dy = y - mb;
+        num += dx * dy;
+        da += dx * dx;
+        db += dy * dy;
+    }
+    if da <= 0.0 || db <= 0.0 {
+        0.0
+    } else {
+        num / (da.sqrt() * db.sqrt())
+    }
+}
+
+/// Generate the 4 deterministic Statistical Chaos Trap datasets (`STAT-TRAP-01..04`) per Spec 12.
+pub fn seed_statistical_chaos_traps(
+    seed: u64,
+    output_dir: &Path,
+) -> Result<Vec<PlantedTrapSpec>, SeederError> {
+    fs::create_dir_all(output_dir)?;
+    let mut rng = DeterministicRng::new(seed ^ 0x57A7_78A9_C0DE_u64);
+
+    // -------------------------------------------------------------------------
+    // STAT-TRAP-01: ab_simpsons_paradox.parquet
+    // Enterprise: Control 80% (160/200) vs Treatment 78% (624/800)  [-2pp]
+    // SMB:        Control 40% (320/800) vs Treatment 38% (76/200)   [-2pp]
+    // Aggregate:  Control 48% (480/1000) vs Treatment 70% (700/1000) [+22pp reversal!]
+    // -------------------------------------------------------------------------
+    let mut sp_user_ids = Vec::with_capacity(2000);
+    let mut sp_variants = Vec::with_capacity(2000);
+    let mut sp_segments = Vec::with_capacity(2000);
+    let mut sp_converted = Vec::with_capacity(2000);
+    let mut uid_seq = 1usize;
+
+    let cells = [
+        ("control", "Enterprise", 200usize, 160usize),
+        ("treatment", "Enterprise", 800usize, 624usize),
+        ("control", "SMB", 800usize, 320usize),
+        ("treatment", "SMB", 200usize, 76usize),
+    ];
+    for (variant, segment, total, positives) in cells {
+        for i in 0..total {
+            sp_user_ids.push(format!("USR-SP-{:05}", uid_seq));
+            sp_variants.push(variant.to_string());
+            sp_segments.push(segment.to_string());
+            sp_converted.push(if i < positives { 1.0 } else { 0.0 });
+            uid_seq += 1;
+        }
+    }
+    let sp_schema = Arc::new(Schema::new(vec![
+        Field::new("user_id", DataType::Utf8, false),
+        Field::new("variant", DataType::Utf8, false),
+        Field::new("segment", DataType::Utf8, false),
+        Field::new("converted", DataType::Float64, false),
+    ]));
+    let sp_batch = RecordBatch::try_new(
+        sp_schema,
+        vec![
+            Arc::new(StringArray::from(sp_user_ids)),
+            Arc::new(StringArray::from(sp_variants)),
+            Arc::new(StringArray::from(sp_segments)),
+            Arc::new(Float64Array::from(sp_converted)),
+        ],
+    )?;
+    write_parquet_batch(&output_dir.join("ab_simpsons_paradox.parquet"), &sp_batch)?;
+
+    // -------------------------------------------------------------------------
+    // STAT-TRAP-02: orders_heavy_tail.parquet
+    // Control (200): median ~100 + 2 extreme $50,000 whale outliers (naive mean ~599)
+    // Treatment (200): median ~118 with no whale outliers (naive mean ~118)
+    // Mann-Whitney U catches true median lift (p < 0.01) after normality fails.
+    // -------------------------------------------------------------------------
+    let mut ht_order_ids = Vec::with_capacity(400);
+    let mut ht_variants = Vec::with_capacity(400);
+    let mut ht_totals = Vec::with_capacity(400);
+
+    for i in 0..200usize {
+        ht_order_ids.push(format!("ORD-HT-C-{:04}", i + 1));
+        ht_variants.push("control".to_string());
+        let val = if i >= 198 {
+            50_000.0
+        } else {
+            (100.0 + rng.next_standard_normal() * 8.0).max(20.0)
+        };
+        ht_totals.push(val);
+    }
+    for i in 0..200usize {
+        ht_order_ids.push(format!("ORD-HT-T-{:04}", i + 1));
+        ht_variants.push("treatment".to_string());
+        let val = (118.0 + rng.next_standard_normal() * 8.0).max(20.0);
+        ht_totals.push(val);
+    }
+    let ht_schema = Arc::new(Schema::new(vec![
+        Field::new("order_id", DataType::Utf8, false),
+        Field::new("variant", DataType::Utf8, false),
+        Field::new("order_total_usd", DataType::Float64, false),
+    ]));
+    let ht_batch = RecordBatch::try_new(
+        ht_schema,
+        vec![
+            Arc::new(StringArray::from(ht_order_ids)),
+            Arc::new(StringArray::from(ht_variants)),
+            Arc::new(Float64Array::from(ht_totals)),
+        ],
+    )?;
+    write_parquet_batch(&output_dir.join("orders_heavy_tail.parquet"), &ht_batch)?;
+
+    // -------------------------------------------------------------------------
+    // STAT-TRAP-03: noise_segments_20.parquet
+    // 20 segments (SEG-01..SEG-20), 50 control + 50 treatment per segment.
+    // Guarantees >= 1 raw p < 0.05 false positive that vanishes to 0 under BH-FDR
+    // (adjusted_p_value > 0.25 for every segment).
+    // -------------------------------------------------------------------------
+    let mut ns_segments = Vec::with_capacity(2000);
+    let mut ns_variants = Vec::with_capacity(2000);
+    let mut ns_values = Vec::with_capacity(2000);
+
+    for seg_idx in 1..=20usize {
+        let seg_name = format!("SEG-{:02}", seg_idx);
+        let (ctrl, trt) = if seg_idx == 7 {
+            // Borderline noise spike: Welch |t| in [2.05, 2.30] -> raw p in [0.023, 0.043],
+            // so BH-FDR across 20 segments adjusts p to ~[0.46, 0.86] > 0.25.
+            let mut c = Vec::with_capacity(50);
+            let mut t = Vec::with_capacity(50);
+            for _ in 0..50 {
+                c.push(rng.next_standard_normal());
+                t.push(rng.next_standard_normal());
+            }
+            let (mc, vc) = sample_mean_and_var(&c);
+            let (mt, vt) = sample_mean_and_var(&t);
+            let se = (vc / 50.0 + vt / 50.0).sqrt();
+            let desired_diff = 2.15 * se;
+            let shift = desired_diff - (mt - mc);
+            for v in &mut t {
+                *v += shift;
+            }
+            (c, t)
+        } else {
+            // Pure Gaussian null; reject rare extreme draws (|t| >= 1.75) so no accidental
+            // ultra-low p-value survives BH-FDR adjustment.
+            loop {
+                let mut c = Vec::with_capacity(50);
+                let mut t = Vec::with_capacity(50);
+                for _ in 0..50 {
+                    c.push(rng.next_standard_normal());
+                    t.push(rng.next_standard_normal());
+                }
+                let (mc, vc) = sample_mean_and_var(&c);
+                let (mt, vt) = sample_mean_and_var(&t);
+                let se = (vc / 50.0 + vt / 50.0).sqrt();
+                let t_stat = ((mt - mc) / se).abs();
+                if t_stat < 1.75 {
+                    break (c, t);
+                }
+            }
+        };
+
+        for v in ctrl {
+            ns_segments.push(seg_name.clone());
+            ns_variants.push("control".to_string());
+            ns_values.push(v);
+        }
+        for v in trt {
+            ns_segments.push(seg_name.clone());
+            ns_variants.push("treatment".to_string());
+            ns_values.push(v);
+        }
+    }
+    let ns_schema = Arc::new(Schema::new(vec![
+        Field::new("segment_id", DataType::Utf8, false),
+        Field::new("variant", DataType::Utf8, false),
+        Field::new("metric_value", DataType::Float64, false),
+    ]));
+    let ns_batch = RecordBatch::try_new(
+        ns_schema,
+        vec![
+            Arc::new(StringArray::from(ns_segments)),
+            Arc::new(StringArray::from(ns_variants)),
+            Arc::new(Float64Array::from(ns_values)),
+        ],
+    )?;
+    write_parquet_batch(&output_dir.join("noise_segments_20.parquet"), &ns_batch)?;
+
+    // -------------------------------------------------------------------------
+    // STAT-TRAP-04: spurious_random_walks.parquet
+    // 365 days of two independent positive-drift random walks:
+    //   level Pearson r > 0.85, ADF p > 0.10, first-differenced |r| < 0.15.
+    // -------------------------------------------------------------------------
+    let days: Vec<i64> = (1..=365).collect();
+    let eps_a: Vec<f64> = (0..364).map(|_| rng.next_standard_normal()).collect();
+    let eps_b: Vec<f64> = loop {
+        let candidate: Vec<f64> = (0..364).map(|_| rng.next_standard_normal()).collect();
+        if pearson_r(&eps_a, &candidate).abs() < 0.10 {
+            break candidate;
+        }
+    };
+    let mut series_a = Vec::with_capacity(365);
+    let mut series_b = Vec::with_capacity(365);
+    let mut cur_a = 100.0_f64;
+    let mut cur_b = 50.0_f64;
+    series_a.push(cur_a);
+    series_b.push(cur_b);
+    for i in 0..364 {
+        cur_a += 0.35 + eps_a[i];
+        cur_b += 0.35 + eps_b[i];
+        series_a.push(cur_a);
+        series_b.push(cur_b);
+    }
+    let srw_schema = Arc::new(Schema::new(vec![
+        Field::new("day", DataType::Int64, false),
+        Field::new("series_a", DataType::Float64, false),
+        Field::new("series_b", DataType::Float64, false),
+    ]));
+    let srw_batch = RecordBatch::try_new(
+        srw_schema,
+        vec![
+            Arc::new(Int64Array::from(days)),
+            Arc::new(Float64Array::from(series_a)),
+            Arc::new(Float64Array::from(series_b)),
+        ],
+    )?;
+    write_parquet_batch(
+        &output_dir.join("spurious_random_walks.parquet"),
+        &srw_batch,
+    )?;
+
+    Ok(vec![
+        PlantedTrapSpec {
+            trap_id: "STAT-TRAP-01".to_string(),
+            category: "simpsons_paradox".to_string(),
+            left_dataset: "ab_simpsons_paradox".to_string(),
+            left_field: "converted".to_string(),
+            right_dataset: "ab_simpsons_paradox".to_string(),
+            right_field: "segment".to_string(),
+            expected_action: "stratify_by_segment_and_flag_confounder".to_string(),
+            description: "Aggregate treatment conversion (70%) exceeds control (48%), but treatment loses inside both Enterprise (78% vs 80%) and SMB (38% vs 40%) due to segment mix confounding.".to_string(),
+        },
+        PlantedTrapSpec {
+            trap_id: "STAT-TRAP-02".to_string(),
+            category: "heavy_tailed_outlier_t_test".to_string(),
+            left_dataset: "orders_heavy_tail".to_string(),
+            left_field: "order_total_usd".to_string(),
+            right_dataset: "orders_heavy_tail".to_string(),
+            right_field: "variant".to_string(),
+            expected_action: "detect_normality_failure_and_switch_to_mann_whitney_u".to_string(),
+            description: "Two $50,000 whale orders inflate control mean (~599 vs ~118), reversing naive parametric direction while Mann-Whitney U reveals true treatment median lift (118 vs 100, p < 0.01).".to_string(),
+        },
+        PlantedTrapSpec {
+            trap_id: "STAT-TRAP-03".to_string(),
+            category: "multiple_testing_p_hacking".to_string(),
+            left_dataset: "noise_segments_20".to_string(),
+            left_field: "metric_value".to_string(),
+            right_dataset: "noise_segments_20".to_string(),
+            right_field: "segment_id".to_string(),
+            expected_action: "apply_bh_fdr_and_report_zero_adjusted_discoveries".to_string(),
+            description: "20 independent null segments include >= 1 raw p < 0.05 false positive that disappears to 0 discoveries under Benjamini-Hochberg FDR adjustment.".to_string(),
+        },
+        PlantedTrapSpec {
+            trap_id: "STAT-TRAP-04".to_string(),
+            category: "spurious_nonstationary_correlation".to_string(),
+            left_dataset: "spurious_random_walks".to_string(),
+            left_field: "series_a".to_string(),
+            right_dataset: "spurious_random_walks".to_string(),
+            right_field: "series_b".to_string(),
+            expected_action: "run_adf_kpss_and_first_difference_before_correlation".to_string(),
+            description: "Two independent positive-drift random walks exhibit high spurious level correlation (r > 0.85) that collapses near zero (|r| < 0.15) after first-differencing.".to_string(),
+        },
+    ])
+}
+
+pub fn seed_validation_suite_with_options(
+    seed: u64,
+    base_row_count: usize,
+    output_dir: &Path,
+    include_stat_traps: bool,
+) -> Result<GroundTruthManifest, SeederError> {
+    let mut manifest = seed_validation_suite(seed, base_row_count, output_dir)?;
+    if include_stat_traps {
+        let stat_traps = seed_statistical_chaos_traps(seed, output_dir)?;
+        manifest.generated_files.extend([
+            "ab_simpsons_paradox.parquet".to_string(),
+            "orders_heavy_tail.parquet".to_string(),
+            "noise_segments_20.parquet".to_string(),
+            "spurious_random_walks.parquet".to_string(),
+        ]);
+        manifest.stat_traps = stat_traps;
+        let manifest_path: PathBuf = output_dir.join("ground_truth_manifest.json");
+        let manifest_json = serde_json::to_string_pretty(&manifest)?;
+        fs::write(manifest_path, manifest_json)?;
+    }
     Ok(manifest)
 }
 
@@ -494,5 +815,30 @@ mod tests {
         let m2 = seed_validation_suite(42, 120, dir2.path()).expect("m2");
 
         assert_eq!(m1, m2);
+    }
+
+    #[test]
+    fn test_seeder_generates_deterministic_stat_traps_01_through_04() {
+        let dir1 = tempdir().expect("dir1");
+        let dir2 = tempdir().expect("dir2");
+
+        let m1 = seed_validation_suite_with_options(42, 80, dir1.path(), true)
+            .expect("seed with stat traps");
+        let m2 = seed_validation_suite_with_options(42, 80, dir2.path(), true)
+            .expect("seed with stat traps 2");
+
+        assert_eq!(m1, m2);
+        assert_eq!(m1.generated_files.len(), 12);
+        assert_eq!(m1.stat_traps.len(), 4);
+        for expected in [
+            "ab_simpsons_paradox.parquet",
+            "orders_heavy_tail.parquet",
+            "noise_segments_20.parquet",
+            "spurious_random_walks.parquet",
+        ] {
+            let p = dir1.path().join(expected);
+            assert!(p.exists(), "expected stat trap parquet {:?} to exist", p);
+            assert!(fs::metadata(&p).expect("metadata").len() > 100);
+        }
     }
 }

@@ -30,6 +30,8 @@ pub enum Commands {
     JoinProbe(JoinProbeArgs),
     /// Execute the 3-Mode Epistemic Ablation Benchmark (Mode A vs Mode B vs Mode C)
     RunAblationBenchmark(SeedValidationSuiteArgs),
+    /// Validate and register built-in SHA-256-pinned statistical algorithms
+    HydrateBuiltins,
 }
 
 #[derive(Debug, Args, PartialEq)]
@@ -45,6 +47,10 @@ pub struct SeedValidationSuiteArgs {
     /// Optional base row count per primary table (defaults to seeder.default_row_count from config)
     #[arg(long = "row-count")]
     pub row_count: Option<usize>,
+
+    /// Also seed deterministic statistical chaos traps (STAT-TRAP-01..04)
+    #[arg(long = "include-stat-traps", default_value_t = false)]
+    pub include_stat_traps: bool,
 }
 
 #[derive(Debug, Args, PartialEq)]
@@ -113,8 +119,31 @@ mod tests {
                 output_dir: PathBuf::from("/tmp/suite"),
                 seed: Some(99),
                 row_count: None,
+                include_stat_traps: false,
             })
         );
+
+        let cli_stat = Cli::try_parse_from([
+            "de-be",
+            "seed-validation-suite",
+            "--output-dir",
+            "/tmp/suite",
+            "--include-stat-traps",
+        ])
+        .expect("parse --include-stat-traps");
+        assert_eq!(
+            cli_stat.command,
+            Commands::SeedValidationSuite(SeedValidationSuiteArgs {
+                output_dir: PathBuf::from("/tmp/suite"),
+                seed: None,
+                row_count: None,
+                include_stat_traps: true,
+            })
+        );
+
+        let cli_hydrate = Cli::try_parse_from(["de-be", "hydrate-builtins"])
+            .expect("parse hydrate-builtins");
+        assert_eq!(cli_hydrate.command, Commands::HydrateBuiltins);
 
         let cli_preflight = Cli::try_parse_from(["de-be", "preflight"]).expect("parse preflight");
         assert_eq!(cli_preflight.command, Commands::Preflight);

@@ -25,16 +25,22 @@ help:
 build:
 	cargo build --manifest-path de-be-container/Cargo.toml
 
+setup-sandbox-venv:
+	@if [ ! -x .venv-sandbox/bin/python3 ]; then \
+		python3 -m venv .venv-sandbox && .venv-sandbox/bin/pip install -r de-be-container/requirements-sandbox.txt; \
+	fi
+
 test: test-be
 
 test-be:
-	cargo test --manifest-path de-be-container/Cargo.toml -- --test-threads=1
+	@PY_BIN=$$(if [ -x "$(CURDIR)/.venv-sandbox/bin/python3" ]; then echo "$(CURDIR)/.venv-sandbox/bin/python3"; elif [ -x "/opt/de-venv/bin/python3" ]; then echo "/opt/de-venv/bin/python3"; else echo "python3"; fi); \
+	DE_BE__SANDBOX__PYTHON_BINARY="$$PY_BIN" cargo test --manifest-path de-be-container/Cargo.toml -- --test-threads=1
 
 preflight:
 	cargo run --manifest-path de-be-container/Cargo.toml -- -c de-be-container/config/default.yaml preflight
 
 seed-validation-suite:
-	cargo run --manifest-path de-be-container/Cargo.toml -- -c de-be-container/config/default.yaml seed-validation-suite --output-dir /tmp/de-validation-suite
+	cargo run --manifest-path de-be-container/Cargo.toml -- -c de-be-container/config/default.yaml seed-validation-suite --output-dir /tmp/de-validation-suite --include-stat-traps
 
 de-be-docker:
 	cd de-be-container && docker build -t data-engine-be:latest .

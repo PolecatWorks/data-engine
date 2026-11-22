@@ -22,11 +22,18 @@ seeder:
   default_row_count: 200
 
 sandbox:
+  backend: "process"
   python_binary: "python3"
-  timeout_ms: 5000
+  timeout_ms: 15000
   max_code_bytes: 65536
+  max_sandbox_rows: 100000
+  max_plot_points: 1000
+  shm_dir: "/dev/shm"
   allowed_modules:
     - "math"
     - "statistics"
     - "json"
-
+    - "numpy"
+    - "scipy"
+    - "statsmodels"
+    - "pyarrow"

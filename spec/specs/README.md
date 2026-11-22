@@ -31,9 +31,9 @@ This directory contains the detailed technical specifications and Test-Driven De
 
 ## Increment 6: Statistical Analytics Engine, Curated Toolbelt & Diagnostics Canvas
 
-* [10. Scientific Python Sandbox Runtime, Zero-Copy Arrow IPC Staging & Built-In Algorithm Registry](./10-scientific-python-sandbox-and-arrow-ipc-spec.md) - `draft`
-* [11. Curated Phase 1 Statistical Toolbelt, `StatisticalResultEnvelope`, MCP Tools & Epistemic Trait Sync](./11-curated-statistical-toolbelt-and-mcp-spec.md) - `draft`
-* [12. Statistical Chaos Traps (`STAT-TRAP-01..04`) & `./StatisticalDiagnosticsWrapper` Canvas Remote](./12-statistical-chaos-traps-and-diagnostics-canvas-spec.md) - `draft`
+* [10. Scientific Python Sandbox Runtime, Zero-Copy Arrow IPC Staging & Built-In Algorithm Registry](./10-scientific-python-sandbox-and-arrow-ipc-spec.md) - `complete`
+* [11. Curated Phase 1 Statistical Toolbelt, `StatisticalResultEnvelope`, MCP Tools & Epistemic Trait Sync](./11-curated-statistical-toolbelt-and-mcp-spec.md) - `complete`
+* [12. Statistical Chaos Traps (`STAT-TRAP-01..04`) & `./StatisticalDiagnosticsWrapper` Canvas Remote](./12-statistical-chaos-traps-and-diagnostics-canvas-spec.md) - `draft` *(Backend `STAT-TRAP-01..04` complete; FE wrapper awaits Spec 09)*
 
 ## Increment 7: Data Visualizations & Semantic Relationship Topology
 

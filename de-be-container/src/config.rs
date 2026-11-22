@@ -57,6 +57,12 @@ pub enum SandboxConfigError {
     ZeroTimeout,
     #[error("sandbox.max_code_bytes must be greater than 0")]
     ZeroMaxCodeBytes,
+    #[error("sandbox.max_sandbox_rows must be greater than 0")]
+    ZeroMaxSandboxRows,
+    #[error("sandbox.max_plot_points must be greater than 0")]
+    ZeroMaxPlotPoints,
+    #[error("sandbox.shm_dir must not be empty")]
+    EmptyShmDir,
 }
 
 #[derive(Debug, Error)]
@@ -183,11 +189,42 @@ impl SeederConfig {
     }
 }
 
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
+#[serde(rename_all = "snake_case")]
+pub enum SandboxBackend {
+    Process,
+    Namespace,
+}
+
+fn default_sandbox_backend() -> SandboxBackend {
+    SandboxBackend::Process
+}
+
+fn default_max_sandbox_rows() -> usize {
+    100_000
+}
+
+fn default_max_plot_points() -> usize {
+    1000
+}
+
+fn default_shm_dir() -> String {
+    "/dev/shm".to_string()
+}
+
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
 pub struct SandboxConfig {
+    #[serde(default = "default_sandbox_backend")]
+    pub backend: SandboxBackend,
     pub python_binary: String,
     pub timeout_ms: u64,
     pub max_code_bytes: usize,
+    #[serde(default = "default_max_sandbox_rows")]
+    pub max_sandbox_rows: usize,
+    #[serde(default = "default_max_plot_points")]
+    pub max_plot_points: usize,
+    #[serde(default = "default_shm_dir")]
+    pub shm_dir: String,
     pub allowed_modules: Vec<String>,
 }
 
@@ -201,6 +238,15 @@ impl SandboxConfig {
         }
         if self.max_code_bytes == 0 {
             return Err(SandboxConfigError::ZeroMaxCodeBytes);
+        }
+        if self.max_sandbox_rows == 0 {
+            return Err(SandboxConfigError::ZeroMaxSandboxRows);
+        }
+        if self.max_plot_points == 0 {
+            return Err(SandboxConfigError::ZeroMaxPlotPoints);
+        }
+        if self.shm_dir.trim().is_empty() {
+            return Err(SandboxConfigError::EmptyShmDir);
         }
         Ok(())
     }
@@ -263,13 +309,21 @@ seeder:
   default_seed: 42
   default_row_count: 200
 sandbox:
+  backend: "process"
   python_binary: "python3"
-  timeout_ms: 5000
+  timeout_ms: 15000
   max_code_bytes: 65536
+  max_sandbox_rows: 100000
+  max_plot_points: 1000
+  shm_dir: "/dev/shm"
   allowed_modules:
     - "math"
     - "statistics"
     - "json"
+    - "numpy"
+    - "scipy"
+    - "statsmodels"
+    - "pyarrow"
 "#
     }
 
@@ -285,7 +339,10 @@ sandbox:
         assert_eq!(cfg.profiler.minhash_num_hashes, 64);
         assert_eq!(cfg.compute.join_inclusion_threshold, 0.80);
         assert_eq!(cfg.seeder.default_seed, 42);
-        assert_eq!(cfg.sandbox.python_binary, "python3");
+        assert!(!cfg.sandbox.python_binary.is_empty());
+        assert_eq!(cfg.sandbox.backend, SandboxBackend::Process);
+        assert_eq!(cfg.sandbox.max_sandbox_rows, 100_000);
+        assert_eq!(cfg.sandbox.max_plot_points, 1000);
     }
 
     #[test]
@@ -294,35 +351,30 @@ sandbox:
         tmp.write_all(sample_yaml().as_bytes()).expect("write yaml");
         let mut cfg = AppConfig::load(tmp.path()).expect("load base");
 
-        // Valid custom prefixes
         cfg.service.api_prefix = "/api/v1".to_string();
         assert!(cfg.validate().is_ok());
 
         cfg.service.api_prefix = "/api/custom/v1".to_string();
         assert!(cfg.validate().is_ok());
 
-        // Invalid: missing leading slash
         cfg.service.api_prefix = "api/v1".to_string();
         assert!(matches!(
             cfg.validate(),
             Err(ConfigError::Service(ServiceConfigError::InvalidApiPrefix))
         ));
 
-        // Invalid: root slash only (len <= 1)
         cfg.service.api_prefix = "/".to_string();
         assert!(matches!(
             cfg.validate(),
             Err(ConfigError::Service(ServiceConfigError::InvalidApiPrefix))
         ));
 
-        // Invalid: trailing slash
         cfg.service.api_prefix = "/api/data-engine/v1/".to_string();
         assert!(matches!(
             cfg.validate(),
             Err(ConfigError::Service(ServiceConfigError::InvalidApiPrefix))
         ));
 
-        // Invalid: empty string
         cfg.service.api_prefix = "".to_string();
         assert!(matches!(
             cfg.validate(),
@@ -377,6 +429,33 @@ sandbox:
         assert!(matches!(
             cfg.validate(),
             Err(ConfigError::Sandbox(SandboxConfigError::ZeroTimeout))
+        ));
+    }
+
+    #[test]
+    fn test_sandbox_config_validation_rejects_zero_row_limit_or_empty_shm_dir() {
+        let mut tmp = NamedTempFile::new().expect("create temp yaml");
+        tmp.write_all(sample_yaml().as_bytes()).expect("write yaml");
+        let mut cfg = AppConfig::load(tmp.path()).expect("load base");
+
+        cfg.sandbox.max_sandbox_rows = 0;
+        assert!(matches!(
+            cfg.validate(),
+            Err(ConfigError::Sandbox(SandboxConfigError::ZeroMaxSandboxRows))
+        ));
+
+        cfg.sandbox.max_sandbox_rows = 10_000;
+        cfg.sandbox.max_plot_points = 0;
+        assert!(matches!(
+            cfg.validate(),
+            Err(ConfigError::Sandbox(SandboxConfigError::ZeroMaxPlotPoints))
+        ));
+
+        cfg.sandbox.max_plot_points = 500;
+        cfg.sandbox.shm_dir = "   ".to_string();
+        assert!(matches!(
+            cfg.validate(),
+            Err(ConfigError::Sandbox(SandboxConfigError::EmptyShmDir))
         ));
     }
 }

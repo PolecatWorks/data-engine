@@ -1,5 +1,18 @@
+FROM debian:bookworm-slim AS pyvenv
+RUN apt-get update && apt-get install -y --no-install-recommends \
+    python3 \
+    python3-venv \
+    python3-pip \
+    ca-certificates \
+    && rm -rf /var/lib/apt/lists/*
+COPY requirements-sandbox.txt /tmp/requirements-sandbox.txt
+RUN python3 -m venv /opt/de-venv \
+    && /opt/de-venv/bin/pip install --no-cache-dir --upgrade pip \
+    && /opt/de-venv/bin/pip install --no-cache-dir -r /tmp/requirements-sandbox.txt \
+    && /opt/de-venv/bin/python3 -c "import numpy, scipy, statsmodels, pyarrow; print('de-venv ok')"
+
 FROM lukemathwalker/cargo-chef:latest-rust-1-bookworm AS chef
-RUN apt-get update && apt-get install -y pkg-config cmake clang libssl-dev && rm -rf /var/lib/apt/lists/*
+RUN apt-get update && apt-get install -y pkg-config cmake clang libssl-dev python3 && rm -rf /var/lib/apt/lists/*
 WORKDIR /app
 
 FROM chef AS planner
@@ -24,6 +37,8 @@ FROM buildcache AS buildcacherelease
 RUN cargo chef cook --release --recipe-path recipe.json
 
 FROM buildcacherelease AS build
+COPY --from=pyvenv /opt/de-venv /opt/de-venv
+ENV DE_BE__SANDBOX__PYTHON_BINARY=/opt/de-venv/bin/python3
 COPY . .
 RUN cargo test -- --test-threads=1
 RUN cargo build --release
@@ -31,15 +46,21 @@ RUN cargo build --release
 # We do not need the Rust toolchain to run the binary!
 FROM debian:bookworm-slim AS runtime
 
-# Install common runtime dependencies
-RUN apt-get update && apt-get install -y \
+# Install common runtime dependencies and Python 3 runtime for the pinned venv
+RUN apt-get update && apt-get install -y --no-install-recommends \
     libssl3 \
     ca-certificates \
+    python3 \
     && rm -rf /var/lib/apt/lists/*
+
+COPY --from=pyvenv /opt/de-venv /opt/de-venv
+RUN /opt/de-venv/bin/python3 -c "import numpy, scipy, statsmodels, pyarrow"
 
 WORKDIR /app
 COPY --from=build /app/target/release/de-be /usr/local/bin/de-be
 COPY config ./config
+
+ENV DE_BE__SANDBOX__PYTHON_BINARY=/opt/de-venv/bin/python3
 
 # Verify that the binary can run in this environment (e.g. check version or help)
 RUN /usr/local/bin/de-be --help

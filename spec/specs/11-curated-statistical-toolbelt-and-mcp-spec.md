@@ -1,6 +1,6 @@
 # Spec 11: Curated Phase 1 Statistical Toolbelt, `StatisticalResultEnvelope`, MCP Tools & Epistemic Trait Sync
 
-- **Status**: `draft`
+- **Status**: `complete`
 - **Derived From**: [08. Statistical Analytics Engine PRD](../prds/statistical-analytics-engine-prd.md), [04. MCP Server & REST API PRD](../prds/data-engine-mcp-api-prd.md)
 - **Dependencies**: [10-scientific-python-sandbox-and-arrow-ipc-spec.md](./10-scientific-python-sandbox-and-arrow-ipc-spec.md)
 
