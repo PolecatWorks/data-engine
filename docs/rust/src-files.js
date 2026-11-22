@@ -1,2 +1,2 @@
-createSrcSidebar('[["de_be",["",[["analytics",[],["mod.rs","scripts.rs"]]],["benchmark.rs","cli.rs","config.rs","error.rs","join_probe.rs","main.rs","profiler.rs","provenance.rs","query_engine.rs","sandbox.rs","seeder.rs","web.rs"]]]]');
-//{"start":19,"fragment_lengths":[214]}
+createSrcSidebar('[["de_be",["",[["analytics",[],["mod.rs","scripts.rs"]],["topology",[],["mod.rs"]],["visuals",[],["config.rs","mod.rs"]]],["benchmark.rs","cli.rs","config.rs","error.rs","join_probe.rs","main.rs","profiler.rs","provenance.rs","query_engine.rs","sandbox.rs","seeder.rs","web.rs"]]]]');
+//{"start":19,"fragment_lengths":[279]}
