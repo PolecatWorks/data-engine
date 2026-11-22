@@ -112,6 +112,33 @@ Detailed statistical contracts, `StatisticalResultEnvelope` schemas, and fail-fa
 
 ---
 
+### 9. Data Visuals & Chart Explorer Resource (`/api/v1/visuals`)
+Detailed `DataVisualSpec` schemas, schema-driven chart recommendations, and fail-fast `max_chart_points` rules are defined in [09. Data Visualizations & Semantic Relationship Topology PRD](./data-visuals-and-semantic-topology-prd.md).
+
+| Operation | HTTP Method & Route | Success Status | Description |
+| :--- | :--- | :--- | :--- |
+| **Recommend** | `POST /api/v1/visuals/recommend` | `200 OK` | Deterministically ranks recommended chart specs from a `dataset_id` or validated SQL output schema and `DatasetField.profile_stats`. |
+| **Query & Hydrate** | `POST /api/v1/visuals/query` | `200 OK` | Validates SQL/binding via `sqlparser-rs` + DataFusion grain checks, enforces `visuals.max_chart_points` (or explicit seeded sampling), records a `ProvenanceRun`, and returns `{ visual_spec, data_values, provenance }`. |
+| **Browse** | `GET /api/v1/visuals` | `200 OK` | Lists saved `DataVisualSpec` artifacts (`?dataset_id=&chart_family=&q=`). |
+| **Read** | `GET /api/v1/visuals/{id}` | `200 OK` | Retrieves a saved `DataVisualSpec` artifact by ID. |
+| **Add** | `POST /api/v1/visuals` | `201 Created` | Persists a new named `DataVisualSpec` artifact. |
+| **Edit** | `PUT /api/v1/visuals/{id}` | `200 OK` | Updates a saved `DataVisualSpec` specification, overlays, or metadata. |
+| **Delete** | `DELETE /api/v1/visuals/{id}` | `204 No Content` | Deletes a saved visual artifact. |
+
+---
+
+### 10. Semantic & Structural Topology Resource (`/api/v1/topology`)
+Detailed 3-layer ontology fusion, ER/join encoding, and Field-to-Field Anatomy DTOs are defined in [09. Data Visualizations & Semantic Relationship Topology PRD](./data-visuals-and-semantic-topology-prd.md).
+
+| Operation | HTTP Method & Route | Success Status | Description |
+| :--- | :--- | :--- | :--- |
+| **Topology Graph** | `GET /api/v1/topology/graph` | `200 OK` | Returns a bounded, fused multi-layer `SemanticTopologyGraph` combining `data-engine` sources, datasets, fields, `JOINABLE_WITH` / `FORBIDDEN_JOIN` edges, and `Graphrag` Layer 2 Concepts, Metrics, Communities, and Confounders (`?lens=&source_id=&dataset_ids=&epistemic_status=&focus_node_id=&hops=2&include_fields=false&include_semantics=true`). |
+| **Dataset Anatomy** | `GET /api/v1/topology/anatomy/dataset/{id}` | `200 OK` | Returns nested Arrow schema hierarchy tree, field profile mini-distributions, sensitivity/unit badges, and incident semantic concepts and joins. |
+| **Join Anatomy** | `GET /api/v1/topology/anatomy/join/{id}` | `200 OK` | Returns side-by-side schema cards, key type compatibility, Venn/Sankey value-overlap breakdown, matched vs. orphan sample keys, and fan-out multiplier diagnostics. |
+| **Mermaid Export** | `GET /api/v1/topology/mermaid` | `200 OK` | Exports any filtered topology view as deterministic Mermaid (`erDiagram` or `flowchart TB`) plus `graph_json`. |
+
+---
+
 ## Model Context Protocol (MCP) Service Specification (`POST /mcp` & `POST /api/v1/mcp`)
 
 Using `rmcp` (`#[tool_router]`, `#[tool]`) and `schemars::JsonSchema`, `DataEngineMcpServer` exposes the following structured tools over stateless HTTP JSON-RPC 2.0:
@@ -143,5 +170,9 @@ Using `rmcp` (`#[tool_router]`, `#[tool]`) and `schemars::JsonSchema`, `DataEngi
 | | `stat_correlation_vif` | `input_binding: Value`, `columns: Vec<String>` | Computes Pearson/Spearman/Kendall matrices, partial correlations, and VIF multicollinearity diagnostics. |
 | | `stat_regression_fit` | `input_binding: Value`, `model_type: String`, `target_col: String`, `feature_cols: Vec<String>` | Fits OLS/GLM/logistic/robust regression with HC3 SEs, Breusch-Pagan, Durbin-Watson, and Cook's distance diagnostics. |
 | | `stat_timeseries_analyze` | `input_binding: Value`, `time_col: String`, `value_col: String` | Runs STL decomposition, ADF/KPSS stationarity tests, ACF/PACF, changepoints, and ETS/ARIMA forecasting. |
+| **Data Visuals** | `visual_recommend` | `dataset_id_or_sql: Value` | Deterministically recommends ranked `DataVisualSpec` candidates (Vega-Lite/ECharts) using schema & field profile stats. |
+| | `visual_render_spec` | `data_binding: Value`, `spec: Value` | Validates query/binding, executes bounded aggregation/sampling with provenance, and returns a canvas-ready `DataVisualSpec` payload for `./DataVisualExplorerWrapper`. |
+| **Semantic & Structural Topology** | `topology_graph` | — | Returns a scoped multi-layer `SemanticTopologyGraph` (Business Concepts/Metrics $\rightarrow$ Datasets $\rightarrow$ Fields, Joins, `FORBIDDEN_JOIN`s, Confounders) for `./SemanticTopologyWrapper`. |
+| | `topology_field_anatomy` | `target_kind: String`, `target_id: String` | Returns zoomed-in dataset nested-schema anatomy or field-to-field join overlap/fan-out anatomy for `./SemanticTopologyWrapper`. |
 | **Provenance** | `provenance_read` | `id: String` | Returns the full cryptographic provenance bundle and Mermaid lineage diagram for a run. |
 | | `provenance_browse` | — | Lists recent provenance runs. |
