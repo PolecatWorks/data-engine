@@ -1037,9 +1037,9 @@ mod tests {
             max_sandbox_rows: 100_000,
             max_plot_points: 1000,
             shm_dir: if std::path::Path::new("/dev/shm").exists() {
-                "/dev/shm".to_string()
+                PathBuf::from("/dev/shm")
             } else {
-                std::env::temp_dir().to_string_lossy().to_string()
+                std::env::temp_dir()
             },
             allowed_modules: vec![
                 "math".to_string(),
@@ -1062,7 +1062,7 @@ mod tests {
                 service: ServiceConfig {
                     name: "data-engine-be".to_string(),
                     version: "0.1.0".to_string(),
-                    host: "127.0.0.1".to_string(),
+                    host: "127.0.0.1".parse().unwrap(),
                     port: 8080,
                     log_level: "info".to_string(),
                     api_prefix: "/api/data-engine/v1".to_string(),

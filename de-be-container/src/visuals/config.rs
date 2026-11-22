@@ -2,6 +2,7 @@
 
 use serde::{Deserialize, Serialize};
 use thiserror::Error;
+use url::Url;
 
 #[derive(Debug, Error, PartialEq)]
 pub enum VisualsConfigError {
@@ -13,54 +14,26 @@ pub enum VisualsConfigError {
     InvalidMaxTopologyEdges(usize),
     #[error("visuals.default_ego_hops must be between 1 and 5, got {0}")]
     InvalidDefaultEgoHops(u8),
-    #[error("visuals.graphrag_base_url must start with http:// or https:// when set")]
+    #[error("visuals.graphrag_base_url must use http:// or https:// scheme when set")]
     InvalidGraphragBaseUrl,
-}
-
-fn default_max_chart_points() -> usize {
-    5000
-}
-
-fn default_max_topology_nodes() -> usize {
-    250
-}
-
-fn default_max_topology_edges() -> usize {
-    500
-}
-
-fn default_ego_hops() -> u8 {
-    2
-}
-
-fn default_enable_graphrag_overlay() -> bool {
-    true
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
 pub struct VisualsConfig {
-    #[serde(default = "default_max_chart_points")]
     pub max_chart_points: usize,
-    #[serde(default = "default_max_topology_nodes")]
     pub max_topology_nodes: usize,
-    #[serde(default = "default_max_topology_edges")]
     pub max_topology_edges: usize,
-    #[serde(default = "default_ego_hops")]
     pub default_ego_hops: u8,
-    #[serde(default = "default_enable_graphrag_overlay")]
-    pub enable_graphrag_overlay: bool,
-    #[serde(default)]
-    pub graphrag_base_url: Option<String>,
+    pub graphrag_base_url: Option<Url>,
 }
 
 impl Default for VisualsConfig {
     fn default() -> Self {
         Self {
-            max_chart_points: default_max_chart_points(),
-            max_topology_nodes: default_max_topology_nodes(),
-            max_topology_edges: default_max_topology_edges(),
-            default_ego_hops: default_ego_hops(),
-            enable_graphrag_overlay: default_enable_graphrag_overlay(),
+            max_chart_points: 5000,
+            max_topology_nodes: 250,
+            max_topology_edges: 500,
+            default_ego_hops: 2,
             graphrag_base_url: None,
         }
     }
@@ -89,8 +62,8 @@ impl VisualsConfig {
             ));
         }
         if let Some(ref url) = self.graphrag_base_url {
-            let trimmed = url.trim();
-            if !trimmed.starts_with("http://") && !trimmed.starts_with("https://") {
+            let scheme = url.scheme();
+            if scheme != "http" && scheme != "https" {
                 return Err(VisualsConfigError::InvalidGraphragBaseUrl);
             }
         }
@@ -105,6 +78,12 @@ mod tests {
     #[test]
     fn test_visuals_config_validation_rejects_out_of_range_bounds() {
         assert!(VisualsConfig::default().validate().is_ok());
+
+        let with_http_url = VisualsConfig {
+            graphrag_base_url: Some(Url::parse("http://graphrag:8080/api/graphrag/v1").unwrap()),
+            ..Default::default()
+        };
+        assert!(with_http_url.validate().is_ok());
 
         let too_few_points = VisualsConfig {
             max_chart_points: 5,
@@ -143,7 +122,7 @@ mod tests {
         );
 
         let bad_url = VisualsConfig {
-            graphrag_base_url: Some("ftp://graphrag:8080".to_string()),
+            graphrag_base_url: Some(Url::parse("ftp://graphrag:8080").unwrap()),
             ..Default::default()
         };
         assert_eq!(

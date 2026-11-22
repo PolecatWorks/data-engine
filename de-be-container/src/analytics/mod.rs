@@ -775,6 +775,7 @@ mod tests {
     use arrow::datatypes::{DataType, Field, Schema};
     use parquet::arrow::ArrowWriter;
     use std::fs::File;
+    use std::path::PathBuf;
     use tempfile::tempdir;
 
     fn sci_config() -> SandboxConfig {
@@ -786,9 +787,9 @@ mod tests {
             max_sandbox_rows: 100_000,
             max_plot_points: 1000,
             shm_dir: if Path::new("/dev/shm").exists() {
-                "/dev/shm".to_string()
+                PathBuf::from("/dev/shm")
             } else {
-                std::env::temp_dir().to_string_lossy().to_string()
+                std::env::temp_dir()
             },
             allowed_modules: vec![
                 "math".to_string(),

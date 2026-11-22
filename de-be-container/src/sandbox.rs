@@ -953,7 +953,7 @@ impl SandboxExecutor for ProcessSandbox {
             return Err(SandboxError::SecurityViolation(validation.violations));
         }
 
-        let run_dir = ShmRunDir::create(Path::new(&self.config.shm_dir))?;
+        let run_dir = ShmRunDir::create(&self.config.shm_dir)?;
         let mut arrow_files = BTreeMap::new();
         let mut aggregate_sample_ctx = SampleContext {
             population_rows: 0,
@@ -1036,7 +1036,7 @@ impl SandboxExecutor for ProcessSandbox {
 }
 
 #[cfg(test)]
-pub(crate) fn detect_test_python_binary() -> String {
+pub(crate) fn detect_test_python_binary() -> PathBuf {
     let candidates = [
         "../.venv-sandbox/bin/python3",
         ".venv-sandbox/bin/python3",
@@ -1044,10 +1044,10 @@ pub(crate) fn detect_test_python_binary() -> String {
     ];
     for c in candidates {
         if Path::new(c).exists() {
-            return c.to_string();
+            return PathBuf::from(c);
         }
     }
-    "python3".to_string()
+    PathBuf::from("python3")
 }
 
 #[cfg(test)]
@@ -1067,7 +1067,7 @@ mod tests {
             max_code_bytes: 65_536,
             max_sandbox_rows: 100_000,
             max_plot_points: 1000,
-            shm_dir: "/dev/shm".to_string(),
+            shm_dir: PathBuf::from("/dev/shm"),
             allowed_modules: vec![
                 "math".to_string(),
                 "statistics".to_string(),
@@ -1165,7 +1165,7 @@ def run(inputs, params):
     fn test_arrow_ipc_staging_and_drop_guard_cleanup() {
         let shm_root = tempdir().expect("temp shm");
         let mut cfg = test_sandbox_config();
-        cfg.shm_dir = shm_root.path().to_string_lossy().to_string();
+        cfg.shm_dir = shm_root.path().to_path_buf();
 
         // Direct Drop guard check
         let tracked_path;
@@ -1216,7 +1216,7 @@ def run(inputs, params):
     fn test_row_limit_fails_fast_without_explicit_sampling() {
         let shm_root = tempdir().expect("temp shm");
         let mut cfg = test_sandbox_config();
-        cfg.shm_dir = shm_root.path().to_string_lossy().to_string();
+        cfg.shm_dir = shm_root.path().to_path_buf();
         cfg.max_sandbox_rows = 50;
 
         let exec = ProcessSandbox::new(cfg);
@@ -1247,7 +1247,7 @@ def run(inputs, params):
     fn test_explicit_seeded_sampling_is_deterministic_and_recorded_in_provenance() {
         let shm_root = tempdir().expect("temp shm");
         let mut cfg = test_sandbox_config();
-        cfg.shm_dir = shm_root.path().to_string_lossy().to_string();
+        cfg.shm_dir = shm_root.path().to_path_buf();
         cfg.max_sandbox_rows = 50;
 
         let exec = ProcessSandbox::new(cfg);
@@ -1301,7 +1301,7 @@ def run(inputs, params):
     fn test_stratified_sampling_preserves_group_representation() {
         let shm_root = tempdir().expect("temp shm");
         let mut cfg = test_sandbox_config();
-        cfg.shm_dir = shm_root.path().to_string_lossy().to_string();
+        cfg.shm_dir = shm_root.path().to_path_buf();
         cfg.max_sandbox_rows = 50;
 
         let exec = ProcessSandbox::new(cfg);

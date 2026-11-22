@@ -43,7 +43,7 @@ visuals:
   max_topology_nodes: 250
   max_topology_edges: 500
   default_ego_hops: 2
-  enable_graphrag_overlay: true
+  graphrag_base_url: null
 
 mcp:
   enabled: true
