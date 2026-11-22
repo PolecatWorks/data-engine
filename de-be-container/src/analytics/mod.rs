@@ -32,6 +32,13 @@ pub enum AnalyticsError {
 
     #[error("analytics catalog lock poisoned")]
     LockPoisoned,
+
+    #[error("malformed analytics sandbox output for field '{field}': {source}")]
+    MalformedSandboxOutput {
+        field: &'static str,
+        #[source]
+        source: serde_json::Error,
+    },
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
@@ -467,31 +474,46 @@ fn execute_builtin_stat_batches(
         .get("primary_result")
         .cloned()
         .unwrap_or_else(|| serde_json::json!({}));
-    let assumption_checks: Vec<AssumptionCheck> = raw_out
-        .output
-        .get("assumption_checks")
-        .and_then(|v| serde_json::from_value(v.clone()).ok())
-        .unwrap_or_default();
-    let recommended_alternative: Option<RecommendedAlternative> = raw_out
-        .output
-        .get("recommended_alternative")
-        .and_then(|v| {
-            if v.is_null() {
-                None
-            } else {
-                serde_json::from_value(v.clone()).ok()
+    let assumption_checks: Vec<AssumptionCheck> = match raw_out.output.get("assumption_checks") {
+        Some(v) if !v.is_null() => serde_json::from_value(v.clone()).map_err(|source| {
+            AnalyticsError::MalformedSandboxOutput {
+                field: "assumption_checks",
+                source,
             }
-        });
-    let diagnostic_plots: Vec<DiagnosticPlotSpec> = raw_out
-        .output
-        .get("diagnostic_plots")
-        .and_then(|v| serde_json::from_value(v.clone()).ok())
-        .unwrap_or_default();
-    let learned_field_traits: Vec<LearnedFieldTrait> = raw_out
-        .output
-        .get("learned_field_traits")
-        .and_then(|v| serde_json::from_value(v.clone()).ok())
-        .unwrap_or_default();
+        })?,
+        _ => Vec::new(),
+    };
+    let recommended_alternative: Option<RecommendedAlternative> =
+        match raw_out.output.get("recommended_alternative") {
+            Some(v) if !v.is_null() => {
+                Some(serde_json::from_value(v.clone()).map_err(|source| {
+                    AnalyticsError::MalformedSandboxOutput {
+                        field: "recommended_alternative",
+                        source,
+                    }
+                })?)
+            }
+            _ => None,
+        };
+    let diagnostic_plots: Vec<DiagnosticPlotSpec> = match raw_out.output.get("diagnostic_plots") {
+        Some(v) if !v.is_null() => serde_json::from_value(v.clone()).map_err(|source| {
+            AnalyticsError::MalformedSandboxOutput {
+                field: "diagnostic_plots",
+                source,
+            }
+        })?,
+        _ => Vec::new(),
+    };
+    let learned_field_traits: Vec<LearnedFieldTrait> =
+        match raw_out.output.get("learned_field_traits") {
+            Some(v) if !v.is_null() => serde_json::from_value(v.clone()).map_err(|source| {
+                AnalyticsError::MalformedSandboxOutput {
+                    field: "learned_field_traits",
+                    source,
+                }
+            })?,
+            _ => Vec::new(),
+        };
 
     let mut rules_applied = vec![
         format!("algorithm_id={}", algorithm_id),

@@ -141,7 +141,7 @@ impl ShmRunDir {
         #[cfg(unix)]
         {
             use std::os::unix::fs::PermissionsExt;
-            let _ = fs::set_permissions(&run_dir, fs::Permissions::from_mode(0o700));
+            fs::set_permissions(&run_dir, fs::Permissions::from_mode(0o700))?;
         }
         Ok(Self { path: run_dir })
     }
