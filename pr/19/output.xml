@@ -1,0 +1,236 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<robot generator="Robot 7.5 (Python 3.14.10 on linux)" generated="2026-11-22T09:21:12.859884" rpa="false" schemaversion="5">
+<suite id="s1" name="Robot-Tests" source="/tmp/robot-tests">
+<suite id="s1-s1" name="Tests" source="/tmp/robot-tests/tests">
+<suite id="s1-s1-s1" name="Test Be" source="/tmp/robot-tests/tests/test_be.robot">
+<test id="s1-s1-s1-t1" name="Backend Direct Pod Health Check" line="9">
+<kw name="Skip If" owner="BuiltIn">
+<arg>'${BE_POD_IP}' == '${EMPTY}'</arg>
+<arg>BE_POD_IP is empty</arg>
+<doc>Conditionally stops the current test or task and sets its status to SKIP.</doc>
+<status status="PASS" start="2026-11-22T09:21:13.341979" elapsed="0.002173"/>
+</kw>
+<kw name="GET" owner="RequestsLibrary">
+<msg time="2026-11-22T09:21:13.350621" level="DEBUG">Starting new HTTP connection (1): 10.244.4.49:8080</msg>
+<msg time="2026-11-22T09:21:13.373761" level="DEBUG">http://10.244.4.49:8080 "GET /api/v1/health HTTP/1.1" 200 60</msg>
+<msg time="2026-11-22T09:21:13.374811" level="INFO">GET Request : url=http://10.244.4.49:8080/api/v1/health 
+ path_url=/api/v1/health 
+ headers={'User-Agent': 'python-requests/2.34.2', 'Accept-Encoding': 'gzip, deflate, zstd', 'Accept': '*/*', 'Connection': 'keep-alive'} 
+ body=None 
+ </msg>
+<msg time="2026-11-22T09:21:13.375202" level="INFO">GET Response : url=http://10.244.4.49:8080/api/v1/health 
+ status=200, reason=OK 
+ headers={'content-type': 'application/json', 'content-length': '60', 'date': 'Sun, 22 Nov 2026 09:21:12 GMT', 'x-envoy-upstream-service-time': '5', 'server': 'envoy'} 
+ body={"status":"ok","service":"data-engine-be","version":"0.1.0"} 
+ </msg>
+<msg time="2026-11-22T09:21:13.375642" level="INFO">${response} = &lt;Response [200]&gt;</msg>
+<var>${response}</var>
+<arg>http://${BE_POD_IP}:8080/api/v1/health</arg>
+<arg>expected_status=200</arg>
+<doc>Sends a GET request.</doc>
+<status status="PASS" start="2026-11-22T09:21:13.344982" elapsed="0.030768"/>
+</kw>
+<kw name="Log" owner="BuiltIn">
+<msg time="2026-11-22T09:21:13.377947" level="INFO">Health Response: {"status":"ok","service":"data-engine-be","version":"0.1.0"}</msg>
+<arg>Health Response: ${response.content}</arg>
+<doc>Logs the given message with the given level.</doc>
+<status status="PASS" start="2026-11-22T09:21:13.376458" elapsed="0.001700"/>
+</kw>
+<kw name="Should Be Equal As Strings" owner="BuiltIn">
+<msg time="2026-11-22T09:21:13.380115" level="DEBUG">Argument types are:
+&lt;class 'str'&gt;
+&lt;class 'str'&gt;</msg>
+<arg>${response.json()['status']}</arg>
+<arg>ok</arg>
+<doc>Fails if objects are unequal after converting them to strings.</doc>
+<status status="PASS" start="2026-11-22T09:21:13.378596" elapsed="0.001810"/>
+</kw>
+<kw name="Should Be Equal As Strings" owner="BuiltIn">
+<msg time="2026-11-22T09:21:13.382851" level="DEBUG">Argument types are:
+&lt;class 'str'&gt;
+&lt;class 'str'&gt;</msg>
+<arg>${response.json()['service']}</arg>
+<arg>data-engine-be</arg>
+<doc>Fails if objects are unequal after converting them to strings.</doc>
+<status status="PASS" start="2026-11-22T09:21:13.381293" elapsed="0.001796"/>
+</kw>
+<doc>Verify the backend health endpoint responds directly on the pod IP.</doc>
+<status status="PASS" start="2026-11-22T09:21:13.338605" elapsed="0.044921"/>
+</test>
+<test id="s1-s1-s1-t2" name="Backend Service Health Check" line="17">
+<kw name="GET" owner="RequestsLibrary">
+<msg time="2026-11-22T09:21:13.389364" level="DEBUG">Starting new HTTP connection (1): data-engine-be:80</msg>
+<msg time="2026-11-22T09:21:13.435557" level="DEBUG">http://data-engine-be:80 "GET /api/v1/health HTTP/1.1" 200 60</msg>
+<msg time="2026-11-22T09:21:13.436454" level="INFO">GET Request : url=http://data-engine-be/api/v1/health 
+ path_url=/api/v1/health 
+ headers={'User-Agent': 'python-requests/2.34.2', 'Accept-Encoding': 'gzip, deflate, zstd', 'Accept': '*/*', 'Connection': 'keep-alive'} 
+ body=None 
+ </msg>
+<msg time="2026-11-22T09:21:13.436693" level="INFO">GET Response : url=http://data-engine-be/api/v1/health 
+ status=200, reason=OK 
+ headers={'content-type': 'application/json', 'content-length': '60', 'date': 'Sun, 22 Nov 2026 09:21:12 GMT', 'x-envoy-upstream-service-time': '16', 'server': 'envoy'} 
+ body={"status":"ok","service":"data-engine-be","version":"0.1.0"} 
+ </msg>
+<msg time="2026-11-22T09:21:13.437096" level="INFO">${response} = &lt;Response [200]&gt;</msg>
+<var>${response}</var>
+<arg>${BE_BASE_URL}/api/v1/health</arg>
+<arg>expected_status=200</arg>
+<doc>Sends a GET request.</doc>
+<status status="PASS" start="2026-11-22T09:21:13.386411" elapsed="0.050778"/>
+</kw>
+<kw name="Log" owner="BuiltIn">
+<msg time="2026-11-22T09:21:13.439246" level="INFO">Service Health Response: {"status":"ok","service":"data-engine-be","version":"0.1.0"}</msg>
+<arg>Service Health Response: ${response.content}</arg>
+<doc>Logs the given message with the given level.</doc>
+<status status="PASS" start="2026-11-22T09:21:13.437876" elapsed="0.001553"/>
+</kw>
+<kw name="Should Be Equal As Strings" owner="BuiltIn">
+<msg time="2026-11-22T09:21:13.441274" level="DEBUG">Argument types are:
+&lt;class 'str'&gt;
+&lt;class 'str'&gt;</msg>
+<arg>${response.json()['status']}</arg>
+<arg>ok</arg>
+<doc>Fails if objects are unequal after converting them to strings.</doc>
+<status status="PASS" start="2026-11-22T09:21:13.439863" elapsed="0.001620"/>
+</kw>
+<kw name="Should Be Equal As Strings" owner="BuiltIn">
+<msg time="2026-11-22T09:21:13.443827" level="DEBUG">Argument types are:
+&lt;class 'str'&gt;
+&lt;class 'str'&gt;</msg>
+<arg>${response.json()['service']}</arg>
+<arg>data-engine-be</arg>
+<doc>Fails if objects are unequal after converting them to strings.</doc>
+<status status="PASS" start="2026-11-22T09:21:13.441936" elapsed="0.002118"/>
+</kw>
+<doc>Verify the backend health endpoint responds via the ClusterIP service.</doc>
+<status status="PASS" start="2026-11-22T09:21:13.384500" elapsed="0.059974"/>
+</test>
+<test id="s1-s1-s1-t3" name="Backend Configured Prefix Health Check" line="24">
+<kw name="GET" owner="RequestsLibrary">
+<msg time="2026-11-22T09:21:13.449747" level="DEBUG">Starting new HTTP connection (1): data-engine-be:80</msg>
+<msg time="2026-11-22T09:21:13.459495" level="DEBUG">http://data-engine-be:80 "GET /api/data-engine/v1/health HTTP/1.1" 200 60</msg>
+<msg time="2026-11-22T09:21:13.460527" level="INFO">GET Request : url=http://data-engine-be/api/data-engine/v1/health 
+ path_url=/api/data-engine/v1/health 
+ headers={'User-Agent': 'python-requests/2.34.2', 'Accept-Encoding': 'gzip, deflate, zstd', 'Accept': '*/*', 'Connection': 'keep-alive'} 
+ body=None 
+ </msg>
+<msg time="2026-11-22T09:21:13.460907" level="INFO">GET Response : url=http://data-engine-be/api/data-engine/v1/health 
+ status=200, reason=OK 
+ headers={'content-type': 'application/json', 'content-length': '60', 'date': 'Sun, 22 Nov 2026 09:21:12 GMT', 'x-envoy-upstream-service-time': '1', 'server': 'envoy'} 
+ body={"status":"ok","service":"data-engine-be","version":"0.1.0"} 
+ </msg>
+<msg time="2026-11-22T09:21:13.461590" level="INFO">${response} = &lt;Response [200]&gt;</msg>
+<var>${response}</var>
+<arg>${BE_BASE_URL}/api/data-engine/v1/health</arg>
+<arg>expected_status=200</arg>
+<doc>Sends a GET request.</doc>
+<status status="PASS" start="2026-11-22T09:21:13.447161" elapsed="0.014549"/>
+</kw>
+<kw name="Log" owner="BuiltIn">
+<msg time="2026-11-22T09:21:13.463729" level="INFO">Prefix Health Response: {"status":"ok","service":"data-engine-be","version":"0.1.0"}</msg>
+<arg>Prefix Health Response: ${response.content}</arg>
+<doc>Logs the given message with the given level.</doc>
+<status status="PASS" start="2026-11-22T09:21:13.462409" elapsed="0.001489"/>
+</kw>
+<kw name="Should Be Equal As Strings" owner="BuiltIn">
+<msg time="2026-11-22T09:21:13.465669" level="DEBUG">Argument types are:
+&lt;class 'str'&gt;
+&lt;class 'str'&gt;</msg>
+<arg>${response.json()['status']}</arg>
+<arg>ok</arg>
+<doc>Fails if objects are unequal after converting them to strings.</doc>
+<status status="PASS" start="2026-11-22T09:21:13.464325" elapsed="0.001548"/>
+</kw>
+<kw name="Should Be Equal As Strings" owner="BuiltIn">
+<msg time="2026-11-22T09:21:13.467737" level="DEBUG">Argument types are:
+&lt;class 'str'&gt;
+&lt;class 'str'&gt;</msg>
+<arg>${response.json()['service']}</arg>
+<arg>data-engine-be</arg>
+<doc>Fails if objects are unequal after converting them to strings.</doc>
+<status status="PASS" start="2026-11-22T09:21:13.466309" elapsed="0.001713"/>
+</kw>
+<doc>Verify the backend health endpoint responds via the configured api_prefix.</doc>
+<status status="PASS" start="2026-11-22T09:21:13.445294" elapsed="0.023119"/>
+</test>
+<test id="s1-s1-s1-t4" name="Backend Negative: Unknown Prefix Returns 404" line="31">
+<kw name="GET" owner="RequestsLibrary">
+<msg time="2026-11-22T09:21:13.473728" level="DEBUG">Starting new HTTP connection (1): data-engine-be:80</msg>
+<msg time="2026-11-22T09:21:13.500880" level="DEBUG">http://data-engine-be:80 "GET /api/unknown-service/v1/health HTTP/1.1" 404 0</msg>
+<msg time="2026-11-22T09:21:13.501741" level="INFO">GET Request : url=http://data-engine-be/api/unknown-service/v1/health 
+ path_url=/api/unknown-service/v1/health 
+ headers={'User-Agent': 'python-requests/2.34.2', 'Accept-Encoding': 'gzip, deflate, zstd', 'Accept': '*/*', 'Connection': 'keep-alive'} 
+ body=None 
+ </msg>
+<msg time="2026-11-22T09:21:13.501943" level="INFO">GET Response : url=http://data-engine-be/api/unknown-service/v1/health 
+ status=404, reason=Not Found 
+ headers={'content-length': '0', 'date': 'Sun, 22 Nov 2026 09:21:12 GMT', 'x-envoy-upstream-service-time': '5', 'server': 'envoy'} 
+ body=None 
+ </msg>
+<msg time="2026-11-22T09:21:13.502313" level="INFO">${response} = &lt;Response [404]&gt;</msg>
+<var>${response}</var>
+<arg>${BE_BASE_URL}/api/unknown-service/v1/health</arg>
+<arg>expected_status=404</arg>
+<doc>Sends a GET request.</doc>
+<status status="PASS" start="2026-11-22T09:21:13.471091" elapsed="0.031311"/>
+</kw>
+<kw name="Log" owner="BuiltIn">
+<msg time="2026-11-22T09:21:13.504353" level="INFO">Response status: 404</msg>
+<arg>Response status: ${response.status_code}</arg>
+<doc>Logs the given message with the given level.</doc>
+<status status="PASS" start="2026-11-22T09:21:13.503050" elapsed="0.001470"/>
+</kw>
+<doc>Verify requests to non-existent API prefixes return 404.</doc>
+<status status="PASS" start="2026-11-22T09:21:13.469206" elapsed="0.035725"/>
+</test>
+<test id="s1-s1-s1-t5" name="Backend Negative: Missing API Version Returns 404" line="36">
+<kw name="GET" owner="RequestsLibrary">
+<msg time="2026-11-22T09:21:13.509969" level="DEBUG">Starting new HTTP connection (1): data-engine-be:80</msg>
+<msg time="2026-11-22T09:21:13.520115" level="DEBUG">http://data-engine-be:80 "GET /api/data-engine/health HTTP/1.1" 404 0</msg>
+<msg time="2026-11-22T09:21:13.520984" level="INFO">GET Request : url=http://data-engine-be/api/data-engine/health 
+ path_url=/api/data-engine/health 
+ headers={'User-Agent': 'python-requests/2.34.2', 'Accept-Encoding': 'gzip, deflate, zstd', 'Accept': '*/*', 'Connection': 'keep-alive'} 
+ body=None 
+ </msg>
+<msg time="2026-11-22T09:21:13.521176" level="INFO">GET Response : url=http://data-engine-be/api/data-engine/health 
+ status=404, reason=Not Found 
+ headers={'content-length': '0', 'date': 'Sun, 22 Nov 2026 09:21:13 GMT', 'x-envoy-upstream-service-time': '1', 'server': 'envoy'} 
+ body=None 
+ </msg>
+<msg time="2026-11-22T09:21:13.521575" level="INFO">${response} = &lt;Response [404]&gt;</msg>
+<var>${response}</var>
+<arg>${BE_BASE_URL}/api/data-engine/health</arg>
+<arg>expected_status=404</arg>
+<doc>Sends a GET request.</doc>
+<status status="PASS" start="2026-11-22T09:21:13.507514" elapsed="0.014228"/>
+</kw>
+<kw name="Log" owner="BuiltIn">
+<msg time="2026-11-22T09:21:13.523966" level="INFO">Response status: 404</msg>
+<arg>Response status: ${response.status_code}</arg>
+<doc>Logs the given message with the given level.</doc>
+<status status="PASS" start="2026-11-22T09:21:13.522489" elapsed="0.001663"/>
+</kw>
+<doc>Verify requests with missing path segments return 404.</doc>
+<status status="PASS" start="2026-11-22T09:21:13.505665" elapsed="0.018870"/>
+</test>
+<status status="PASS" start="2026-11-22T09:21:13.065602" elapsed="0.460578"/>
+</suite>
+<status status="PASS" start="2026-11-22T09:21:13.061508" elapsed="0.466983"/>
+</suite>
+<status status="PASS" start="2026-11-22T09:21:12.865380" elapsed="0.665853"/>
+</suite>
+<statistics>
+<total>
+<stat pass="5" fail="0" skip="0">All Tests</stat>
+</total>
+<tag>
+</tag>
+<suite>
+<stat name="Robot-Tests" id="s1" pass="5" fail="0" skip="0">Robot-Tests</stat>
+<stat name="Tests" id="s1-s1" pass="5" fail="0" skip="0">Robot-Tests.Tests</stat>
+<stat name="Test Be" id="s1-s1-s1" pass="5" fail="0" skip="0">Robot-Tests.Tests.Test Be</stat>
+</suite>
+</statistics>
+<errors>
+</errors>
+</robot>
