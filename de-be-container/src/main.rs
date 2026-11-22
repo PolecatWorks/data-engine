@@ -4,6 +4,7 @@ pub mod cli;
 pub mod config;
 pub mod error;
 pub mod join_probe;
+pub mod mcp;
 pub mod profiler;
 pub mod provenance;
 pub mod query_engine;
@@ -27,6 +28,7 @@ use crate::cli::{Cli, Commands};
 use crate::config::AppConfig;
 use crate::error::AppError;
 use crate::join_probe::probe_join;
+use crate::mcp::server::DataEngineMcpServer;
 use crate::profiler::{DatasetProfile, profile_parquet_dataset};
 use crate::provenance::ProvenanceStore;
 use crate::seeder::seed_validation_suite_with_options;
@@ -144,6 +146,7 @@ async fn main() -> Result<(), AppError> {
                 field_catalog: FieldStatisticalCatalog::default(),
                 saved_visuals: SavedVisualStore::default(),
                 topology_catalog: TopologyCatalog::default(),
+                mcp_server: Arc::new(DataEngineMcpServer::new()),
             };
             let router = build_router(state);
             let listener = TcpListener::bind(&bind_addr).await?;
