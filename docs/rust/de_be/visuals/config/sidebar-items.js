@@ -1,1 +1,1 @@
-window.SIDEBAR_ITEMS = {"enum":["VisualsConfigError"],"fn":["default_ego_hops","default_enable_graphrag_overlay","default_max_chart_points","default_max_topology_edges","default_max_topology_nodes"],"struct":["VisualsConfig"]};
+window.SIDEBAR_ITEMS = {"enum":["VisualsConfigError"],"struct":["VisualsConfig"]};

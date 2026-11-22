@@ -941,9 +941,9 @@
 <a href=#941 id=941 data-nosnippet>941</a>            max_sandbox_rows: <span class="number">100_000</span>,
 <a href=#942 id=942 data-nosnippet>942</a>            max_plot_points: <span class="number">1000</span>,
 <a href=#943 id=943 data-nosnippet>943</a>            shm_dir: <span class="kw">if </span>std::path::Path::new(<span class="string">"/dev/shm"</span>).exists() {
-<a href=#944 id=944 data-nosnippet>944</a>                <span class="string">"/dev/shm"</span>.to_string()
+<a href=#944 id=944 data-nosnippet>944</a>                std::path::PathBuf::from(<span class="string">"/dev/shm"</span>)
 <a href=#945 id=945 data-nosnippet>945</a>            } <span class="kw">else </span>{
-<a href=#946 id=946 data-nosnippet>946</a>                std::env::temp_dir().to_string_lossy().to_string()
+<a href=#946 id=946 data-nosnippet>946</a>                std::env::temp_dir()
 <a href=#947 id=947 data-nosnippet>947</a>            },
 <a href=#948 id=948 data-nosnippet>948</a>            allowed_modules: <span class="macro">vec!</span>[
 <a href=#949 id=949 data-nosnippet>949</a>                <span class="string">"math"</span>.to_string(),

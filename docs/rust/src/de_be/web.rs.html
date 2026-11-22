@@ -1037,9 +1037,9 @@
 <a href=#1037 id=1037 data-nosnippet>1037</a>            max_sandbox_rows: <span class="number">100_000</span>,
 <a href=#1038 id=1038 data-nosnippet>1038</a>            max_plot_points: <span class="number">1000</span>,
 <a href=#1039 id=1039 data-nosnippet>1039</a>            shm_dir: <span class="kw">if </span>std::path::Path::new(<span class="string">"/dev/shm"</span>).exists() {
-<a href=#1040 id=1040 data-nosnippet>1040</a>                <span class="string">"/dev/shm"</span>.to_string()
+<a href=#1040 id=1040 data-nosnippet>1040</a>                PathBuf::from(<span class="string">"/dev/shm"</span>)
 <a href=#1041 id=1041 data-nosnippet>1041</a>            } <span class="kw">else </span>{
-<a href=#1042 id=1042 data-nosnippet>1042</a>                std::env::temp_dir().to_string_lossy().to_string()
+<a href=#1042 id=1042 data-nosnippet>1042</a>                std::env::temp_dir()
 <a href=#1043 id=1043 data-nosnippet>1043</a>            },
 <a href=#1044 id=1044 data-nosnippet>1044</a>            allowed_modules: <span class="macro">vec!</span>[
 <a href=#1045 id=1045 data-nosnippet>1045</a>                <span class="string">"math"</span>.to_string(),
@@ -1062,7 +1062,7 @@
 <a href=#1062 id=1062 data-nosnippet>1062</a>                service: ServiceConfig {
 <a href=#1063 id=1063 data-nosnippet>1063</a>                    name: <span class="string">"data-engine-be"</span>.to_string(),
 <a href=#1064 id=1064 data-nosnippet>1064</a>                    version: <span class="string">"0.1.0"</span>.to_string(),
-<a href=#1065 id=1065 data-nosnippet>1065</a>                    host: <span class="string">"127.0.0.1"</span>.to_string(),
+<a href=#1065 id=1065 data-nosnippet>1065</a>                    host: <span class="string">"127.0.0.1"</span>.parse().unwrap(),
 <a href=#1066 id=1066 data-nosnippet>1066</a>                    port: <span class="number">8080</span>,
 <a href=#1067 id=1067 data-nosnippet>1067</a>                    log_level: <span class="string">"info"</span>.to_string(),
 <a href=#1068 id=1068 data-nosnippet>1068</a>                    api_prefix: <span class="string">"/api/data-engine/v1"</span>.to_string(),
