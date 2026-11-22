@@ -41,3 +41,7 @@ This directory contains the detailed technical specifications and Test-Driven De
 * [14. Semantic & Structural Topology Graph Engine, Field Anatomy API & MCP Tools (`src/topology/`)](./14-semantic-topology-graph-and-field-anatomy-spec.md) - `draft`
 * [15. `./DataVisualExplorerWrapper` & `./SemanticTopologyWrapper` Angular Native Federation Canvas Remotes (`de-fe-container`)](./15-data-visual-explorer-and-semantic-topology-canvas-spec.md) - `draft`
 
+## Increment 8: Keycloak JWKS Authentication & Claims Gatekeeper
+
+* [16. Keycloak JWKS Authentication, Claims Gatekeeper & Service Auth (`src/auth/`)](./16-keycloak-jwks-auth-and-claims-spec.md) - `draft`
+
