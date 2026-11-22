@@ -97,7 +97,7 @@ jobs:
 
   build:
     needs: [check-paths, check-image]
-    if: needs.check-paths.outputs.fe == 'true' && needs.check-image.outputs.exists != 'true'
+    if: needs.check-paths.outputs.fe == 'true' && needs.check-paths.outputs.fe_dir_exists == 'true' && needs.check-image.outputs.exists != 'true'
     strategy:
       fail-fast: false
       matrix:
@@ -179,8 +179,7 @@ jobs:
             NODE_AUTH_TOKEN=${{ secrets.GITHUB_TOKEN }}
           labels: ${{ steps.meta.outputs.labels }}
           annotations: ${{ steps.meta.outputs.annotations }}
-          outputs: type=image,name=${{ env.REGISTRY }}/${{ env.IMAGE_NAME_LOWERCASE
-            }},push-by-digest=true,name-canonical=true,push=true,oci-mediatypes=true
+          outputs: type=image,name=${{ env.REGISTRY }}/${{ env.IMAGE_NAME_LOWERCASE }},push-by-digest=true,name-canonical=true,push=true,oci-mediatypes=true
           cache-from: |
             type=gha,scope=${{ github.repository }}-de-fe-main-${{ matrix.platform }}
           cache-to: ${{ github.ref_name == 'main' && format('type=gha,mode=max,scope={0}-de-fe-main-{1}', github.repository, matrix.platform) || '' }}
@@ -221,7 +220,7 @@ jobs:
       - check-paths
       - check-image
       - build
-    if: always() && needs.check-paths.outputs.fe == 'true' && (needs.build.result == 'success' || needs.check-image.outputs.exists == 'true')
+    if: always() && needs.check-paths.outputs.fe == 'true' && needs.check-paths.outputs.fe_dir_exists == 'true' && (needs.build.result == 'success' || needs.check-image.outputs.exists == 'true')
     steps:
       - name: Prepare environment
         run: |
@@ -330,6 +329,7 @@ jobs:
     if: |
       always() &&
       needs.check-paths.outputs.fe == 'true' &&
+      needs.check-paths.outputs.fe_dir_exists == 'true' &&
       github.event_name == 'push' &&
       github.ref == 'refs/heads/main' &&
       (needs.check-image.outputs.exists == 'true' || needs.merge.result == 'success')
