@@ -87,6 +87,9 @@ pub enum ConfigError {
 
     #[error(transparent)]
     Visuals(#[from] crate::visuals::config::VisualsConfigError),
+
+    #[error(transparent)]
+    Mcp(#[from] crate::mcp::McpError),
 }
 
 fn default_api_prefix() -> String {
@@ -264,6 +267,8 @@ pub struct AppConfig {
     pub sandbox: SandboxConfig,
     #[serde(default)]
     pub visuals: crate::visuals::config::VisualsConfig,
+    #[serde(default)]
+    pub mcp: crate::mcp::McpConfig,
 }
 
 impl AppConfig {
@@ -284,6 +289,7 @@ impl AppConfig {
         self.seeder.validate()?;
         self.sandbox.validate()?;
         self.visuals.validate()?;
+        self.mcp.validate()?;
         Ok(())
     }
 }
@@ -463,5 +469,31 @@ sandbox:
             cfg.validate(),
             Err(ConfigError::Sandbox(SandboxConfigError::EmptyShmDir))
         ));
+    }
+
+    #[test]
+    fn test_mcp_config_validation_delegation() {
+        let mut tmp = NamedTempFile::new().expect("create temp yaml");
+        tmp.write_all(sample_yaml().as_bytes()).expect("write yaml");
+        let mut cfg = AppConfig::load(tmp.path()).expect("load base");
+
+        assert!(cfg.mcp.enabled);
+        assert_eq!(cfg.mcp.server_name, "data-engine-mcp");
+
+        cfg.mcp.server_name = "   ".to_string();
+        assert!(matches!(
+            cfg.validate(),
+            Err(ConfigError::Mcp(crate::mcp::McpError::EmptyServerName))
+        ));
+
+        cfg.mcp.server_name = "data-engine-mcp".to_string();
+        cfg.mcp.instructions = "".to_string();
+        assert!(matches!(
+            cfg.validate(),
+            Err(ConfigError::Mcp(crate::mcp::McpError::EmptyInstructions))
+        ));
+
+        cfg.mcp.enabled = false;
+        assert!(cfg.validate().is_ok());
     }
 }

@@ -7,11 +7,10 @@ use axum::response::IntoResponse;
 use axum::routing::{get, post, put};
 use axum::{Json, Router};
 use serde::{Deserialize, Serialize};
-use thiserror::Error;
 use uuid::Uuid;
 
 use crate::analytics::{
-    AnalyticsError, BuiltinAlgorithmRegistry, FieldStatisticalCatalog, StatCorrelationVifRequest,
+    BuiltinAlgorithmRegistry, FieldStatisticalCatalog, StatCorrelationVifRequest,
     StatDescribeRequest, StatHypothesisTestRequest, StatPowerAnalysisRequest,
     StatRegressionFitRequest, StatTimeseriesAnalyzeRequest, run_stat_correlation_vif,
     run_stat_describe, run_stat_hypothesis_test, run_stat_power_analysis, run_stat_regression_fit,
@@ -20,6 +19,7 @@ use crate::analytics::{
 use crate::benchmark::{run_ablation_benchmark, run_statistical_traps_benchmark};
 use crate::config::AppConfig;
 use crate::join_probe::probe_join;
+use crate::mcp::server::DataEngineMcpServer;
 use crate::profiler::{DatasetProfile, profile_parquet_dataset};
 use crate::provenance::ProvenanceStore;
 use crate::query_engine::{SemanticQueryPlan, execute_query_plan, validate_query_plan};
@@ -46,6 +46,7 @@ pub struct AppState {
     pub field_catalog: FieldStatisticalCatalog,
     pub saved_visuals: SavedVisualStore,
     pub topology_catalog: TopologyCatalog,
+    pub mcp_server: Arc<DataEngineMcpServer>,
 }
 
 #[derive(Debug, Serialize, Deserialize, PartialEq)]
@@ -142,8 +143,8 @@ impl From<TopologyHttpQuery> for TopologyGraphQuery {
     }
 }
 
-fn v1_routes() -> Router<AppState> {
-    Router::new()
+fn v1_routes(mcp_enabled: bool) -> Router<AppState> {
+    let mut router = Router::new()
         .route("/health", get(health_handler))
         .route("/datasets", get(datasets_list_handler))
         .route("/datasets/seed", post(seed_handler))
@@ -199,19 +200,29 @@ fn v1_routes() -> Router<AppState> {
         )
         .route("/topology/mermaid", get(topology_mermaid_handler))
         .route("/provenance/{id}", get(provenance_read_handler))
-        .route("/benchmarks/run", post(benchmark_run_handler))
-        .route("/mcp", post(mcp_rpc_handler))
+        .route("/benchmarks/run", post(benchmark_run_handler));
+
+    if mcp_enabled {
+        router = router.route("/mcp", post(crate::mcp::rpc::handle_http_rpc));
+    }
+
+    router
 }
 
 pub fn build_router(state: AppState) -> Router {
     let prefix = state.config.service.api_prefix.trim_end_matches('/');
-    let mut router = Router::new()
-        .route("/health", get(health_handler))
-        .route("/mcp", post(mcp_rpc_handler))
-        .nest(prefix, v1_routes());
+    let mcp_enabled = state.config.mcp.enabled;
+
+    let mut router = Router::new().route("/health", get(health_handler));
+
+    if mcp_enabled {
+        router = router.route("/mcp", post(crate::mcp::rpc::handle_http_rpc));
+    }
+
+    router = router.nest(prefix, v1_routes(mcp_enabled));
 
     if prefix != "/api/v1" {
-        router = router.nest("/api/v1", v1_routes());
+        router = router.nest("/api/v1", v1_routes(mcp_enabled));
     }
 
     router.with_state(state)
@@ -696,7 +707,7 @@ async fn join_steward_handler(
     }
 }
 
-fn execute_visual_recommend_inner(
+pub(crate) fn execute_visual_recommend_inner(
     state: &AppState,
     req: &VisualRecommendRequest,
 ) -> Result<crate::visuals::VisualRecommendResponse, VisualsError> {
@@ -763,7 +774,7 @@ async fn visual_recommend_handler(
     }
 }
 
-fn execute_visual_query_inner(
+pub(crate) fn execute_visual_query_inner(
     state: &AppState,
     req: &VisualQueryRequest,
 ) -> Result<crate::visuals::VisualQueryResponse, VisualsError> {
@@ -988,432 +999,6 @@ async fn topology_mermaid_handler(
     }
 }
 
-fn mcp_tool_catalog() -> serde_json::Value {
-    serde_json::json!([
-        {
-            "name": "hello",
-            "description": "Health-check MCP tool returning a greeting from data-engine.",
-            "inputSchema": {
-                "type": "object",
-                "properties": { "name": { "type": "string" } }
-            }
-        },
-        {
-            "name": "algorithm_browse",
-            "description": "List all hydrated, SHA-256-pinned built-in statistical algorithms.",
-            "inputSchema": { "type": "object", "properties": {} }
-        },
-        {
-            "name": "stat_describe_and_check",
-            "description": "Compute distributional moments, quantiles, Shapiro-Wilk/D'Agostino normality, outlier counts, and learned field traits.",
-            "inputSchema": {
-                "type": "object",
-                "required": ["input_binding", "columns"],
-                "properties": {
-                    "input_binding": { "type": "object" },
-                    "columns": { "type": "array", "items": { "type": "string" } },
-                    "sampling": { "type": "object" }
-                }
-            }
-        },
-        {
-            "name": "stat_hypothesis_test",
-            "description": "Execute parametric/non-parametric hypothesis tests with assumption checks, CIs, BH-FDR correction, and Simpson's paradox stratification.",
-            "inputSchema": {
-                "type": "object",
-                "required": ["input_binding", "method", "value_col"],
-                "properties": {
-                    "input_binding": { "type": "object" },
-                    "method": { "type": "string" },
-                    "value_col": { "type": "string" },
-                    "group_col": { "type": "string" },
-                    "segment_col": { "type": "string" },
-                    "stratify_by": { "type": "string" },
-                    "correction": { "type": "string" },
-                    "alpha": { "type": "number" }
-                }
-            }
-        },
-        {
-            "name": "stat_power_analysis",
-            "description": "Compute prospective/retrospective statistical power, required sample size, or MDE.",
-            "inputSchema": {
-                "type": "object",
-                "required": ["test_type", "solve_for"],
-                "properties": {
-                    "test_type": { "type": "string" },
-                    "solve_for": { "type": "string" },
-                    "alpha": { "type": "number" },
-                    "power": { "type": "number" },
-                    "effect_size": { "type": "number" },
-                    "p1": { "type": "number" },
-                    "p2": { "type": "number" },
-                    "n_per_group": { "type": "integer" }
-                }
-            }
-        },
-        {
-            "name": "stat_correlation_vif",
-            "description": "Compute Pearson/Spearman/Kendall correlation matrices with FDR adjustment, partial correlations, and VIF multicollinearity diagnostics.",
-            "inputSchema": {
-                "type": "object",
-                "required": ["input_binding", "columns"],
-                "properties": {
-                    "input_binding": { "type": "object" },
-                    "columns": { "type": "array", "items": { "type": "string" } },
-                    "methods": { "type": "array", "items": { "type": "string" } },
-                    "control_cols": { "type": "array", "items": { "type": "string" } },
-                    "correction": { "type": "string" }
-                }
-            }
-        },
-        {
-            "name": "stat_regression_fit",
-            "description": "Fit OLS, GLM, or Huber robust regression with HC3 SEs, Breusch-Pagan, Durbin-Watson, and Cook's distance diagnostics.",
-            "inputSchema": {
-                "type": "object",
-                "required": ["input_binding", "model_type", "target_col", "feature_cols"],
-                "properties": {
-                    "input_binding": { "type": "object" },
-                    "model_type": { "type": "string" },
-                    "target_col": { "type": "string" },
-                    "feature_cols": { "type": "array", "items": { "type": "string" } },
-                    "add_intercept": { "type": "boolean" }
-                }
-            }
-        },
-        {
-            "name": "stat_timeseries_analyze",
-            "description": "Perform STL decomposition, ADF/KPSS stationarity, ACF/PACF, spurious cross-series correlation checks, and ETS/ARIMA forecasting.",
-            "inputSchema": {
-                "type": "object",
-                "required": ["input_binding", "time_col", "value_col"],
-                "properties": {
-                    "input_binding": { "type": "object" },
-                    "time_col": { "type": "string" },
-                    "value_col": { "type": "string" },
-                    "compare_col": { "type": "string" },
-                    "period": { "type": "integer" },
-                    "forecast_horizon": { "type": "integer" },
-                    "model": { "type": "string" }
-                }
-            }
-        },
-        {
-            "name": "visual_recommend",
-            "description": "Deterministically recommend ranked Vega-Lite v5 or Apache ECharts DataVisualSpec candidates from dataset schema and profile statistics.",
-            "inputSchema": {
-                "type": "object",
-                "properties": {
-                    "dataset_name": { "type": "string" },
-                    "parquet_path": { "type": "string" },
-                    "renderer": { "type": "string", "enum": ["vega_lite", "echarts"] },
-                    "max_recommendations": { "type": "integer" }
-                }
-            }
-        },
-        {
-            "name": "visual_render_spec",
-            "description": "Validate semantic/fan-out guardrails, execute bounded aggregation or seeded sampling with ProvenanceRun tracking, and return a canvas-ready DataVisualSpec for ./DataVisualExplorerWrapper.",
-            "inputSchema": {
-                "type": "object",
-                "required": ["data_binding", "spec"],
-                "properties": {
-                    "title": { "type": "string" },
-                    "renderer": { "type": "string", "enum": ["vega_lite", "echarts"] },
-                    "chart_family": { "type": "string" },
-                    "data_binding": { "type": "object" },
-                    "spec": { "type": "object" },
-                    "sampling": { "type": "object" },
-                    "question": { "type": "string" }
-                }
-            }
-        },
-        {
-            "name": "topology_graph",
-            "description": "Return a bounded multi-layer SemanticTopologyGraph (Business Concepts/Metrics -> Datasets -> Fields, JOINABLE_WITH, FORBIDDEN_JOIN, fan-out & CONFOUNDED_BY overlays) for ./SemanticTopologyWrapper.",
-            "inputSchema": {
-                "type": "object",
-                "properties": {
-                    "lens": { "type": "string", "enum": ["semantic_3layer", "er_join", "lineage_overlay"] },
-                    "focus_node_id": { "type": "string" },
-                    "hops": { "type": "integer" },
-                    "dataset_ids": { "type": "array", "items": { "type": "string" } },
-                    "include_fields": { "type": "boolean" },
-                    "include_forbidden": { "type": "boolean" },
-                    "include_semantics": { "type": "boolean" },
-                    "provenance_run_id": { "type": "string" }
-                }
-            }
-        },
-        {
-            "name": "topology_field_anatomy",
-            "description": "Return zoomed-in nested Arrow schema anatomy for a dataset or side-by-side schema cards, type compatibility, Venn/Sankey overlap, and fan-out diagnostics for a join hypothesis.",
-            "inputSchema": {
-                "type": "object",
-                "required": ["target_kind", "target_id"],
-                "properties": {
-                    "target_kind": { "type": "string", "enum": ["dataset", "join"] },
-                    "target_id": { "type": "string" }
-                }
-            }
-        }
-    ])
-}
-
-#[derive(Debug, Error)]
-pub enum McpError {
-    #[error(transparent)]
-    Analytics(#[from] AnalyticsError),
-
-    #[error(transparent)]
-    Visuals(#[from] VisualsError),
-
-    #[error("invalid MCP tool arguments or payload: {0}")]
-    Json(#[from] serde_json::Error),
-
-    #[error("Unknown MCP tool '{0}'")]
-    UnknownTool(String),
-}
-
-async fn dispatch_mcp_tool(
-    state: &AppState,
-    name: &str,
-    args: serde_json::Value,
-) -> Result<serde_json::Value, McpError> {
-    match name {
-        "hello" => {
-            let who = args
-                .get("name")
-                .and_then(|v| v.as_str())
-                .unwrap_or("world")
-                .trim();
-            Ok(serde_json::json!({ "message": format!("Hello from data-engine, {}!", who) }))
-        }
-        "algorithm_browse" => {
-            let list = state.algorithm_registry.list()?;
-            Ok(serde_json::json!({ "algorithms": list }))
-        }
-        "stat_describe_and_check" => {
-            let req: StatDescribeRequest = serde_json::from_value(args)?;
-            let env = run_stat_describe(
-                &req,
-                &state.config.sandbox,
-                &state.provenance_store,
-                &state.field_catalog,
-            )?;
-            Ok(serde_json::to_value(env)?)
-        }
-        "stat_hypothesis_test" => {
-            let req: StatHypothesisTestRequest = serde_json::from_value(args)?;
-            let env = run_stat_hypothesis_test(
-                &req,
-                &state.config.sandbox,
-                &state.provenance_store,
-                &state.field_catalog,
-            )?;
-            Ok(serde_json::to_value(env)?)
-        }
-        "stat_power_analysis" => {
-            let req: StatPowerAnalysisRequest = serde_json::from_value(args)?;
-            let env = run_stat_power_analysis(
-                &req,
-                &state.config.sandbox,
-                &state.provenance_store,
-                &state.field_catalog,
-            )?;
-            Ok(serde_json::to_value(env)?)
-        }
-        "stat_correlation_vif" => {
-            let req: StatCorrelationVifRequest = serde_json::from_value(args)?;
-            let env = run_stat_correlation_vif(
-                &req,
-                &state.config.sandbox,
-                &state.provenance_store,
-                &state.field_catalog,
-            )?;
-            Ok(serde_json::to_value(env)?)
-        }
-        "stat_regression_fit" => {
-            let req: StatRegressionFitRequest = serde_json::from_value(args)?;
-            let env = run_stat_regression_fit(
-                &req,
-                &state.config.sandbox,
-                &state.provenance_store,
-                &state.field_catalog,
-            )?;
-            Ok(serde_json::to_value(env)?)
-        }
-        "stat_timeseries_analyze" => {
-            let req: StatTimeseriesAnalyzeRequest = serde_json::from_value(args)?;
-            let env = run_stat_timeseries_analyze(
-                &req,
-                &state.config.sandbox,
-                &state.provenance_store,
-                &state.field_catalog,
-            )?;
-            Ok(serde_json::to_value(env)?)
-        }
-        "visual_recommend" => {
-            let req: VisualRecommendRequest = serde_json::from_value(args)?;
-            let resp = execute_visual_recommend_inner(state, &req)?;
-            Ok(serde_json::to_value(resp)?)
-        }
-        "visual_render_spec" => {
-            let req: VisualQueryRequest = serde_json::from_value(args)?;
-            let resp = execute_visual_query_inner(state, &req)?;
-            Ok(serde_json::to_value(resp)?)
-        }
-        "topology_graph" => {
-            let req: TopologyGraphQuery = serde_json::from_value(args)?;
-            let graph = build_topology_graph(
-                &state.topology_catalog,
-                &state.field_catalog,
-                &state.provenance_store,
-                &state.config.visuals,
-                &req,
-            )
-            .await?;
-            Ok(serde_json::to_value(graph)?)
-        }
-        "topology_field_anatomy" => {
-            let target_kind = args
-                .get("target_kind")
-                .and_then(|v| v.as_str())
-                .ok_or_else(|| {
-                    VisualsError::InvalidVisualSpec("missing target_kind ('dataset' or 'join')".to_string())
-                })?;
-            let target_id = args
-                .get("target_id")
-                .and_then(|v| v.as_str())
-                .ok_or_else(|| {
-                    VisualsError::InvalidVisualSpec("missing target_id".to_string())
-                })?;
-            match target_kind {
-                "dataset" => {
-                    let resp = build_dataset_anatomy(
-                        target_id,
-                        &state.topology_catalog,
-                        &state.field_catalog,
-                    )?;
-                    Ok(serde_json::to_value(resp)?)
-                }
-                "join" => {
-                    let resp = build_join_anatomy(target_id, &state.topology_catalog)?;
-                    Ok(serde_json::to_value(resp)?)
-                }
-                other => Err(McpError::Visuals(VisualsError::InvalidVisualSpec(format!(
-                    "unsupported target_kind '{}'; expected 'dataset' or 'join'",
-                    other
-                )))),
-            }
-        }
-        other => Err(McpError::UnknownTool(other.to_string())),
-    }
-}
-
-fn mcp_tool_result(
-    id: serde_json::Value,
-    value: Result<serde_json::Value, McpError>,
-) -> Json<serde_json::Value> {
-    match value {
-        Ok(payload) => {
-            let text = serde_json::to_string_pretty(&payload).unwrap_or_else(|_| "{}".to_string());
-            Json(serde_json::json!({
-                "jsonrpc": "2.0",
-                "id": id,
-                "result": {
-                    "content": [{ "type": "text", "text": text }],
-                    "isError": false
-                }
-            }))
-        }
-        Err(err) => Json(serde_json::json!({
-            "jsonrpc": "2.0",
-            "id": id,
-            "result": {
-                "content": [{ "type": "text", "text": err.to_string() }],
-                "isError": true
-            }
-        })),
-    }
-}
-
-async fn mcp_rpc_handler(
-    State(state): State<AppState>,
-    Json(req): Json<serde_json::Value>,
-) -> impl IntoResponse {
-    let id = req.get("id").cloned().unwrap_or(serde_json::Value::Null);
-    let Some(method) = req.get("method").and_then(|m| m.as_str()) else {
-        return (
-            StatusCode::OK,
-            Json(serde_json::json!({
-                "jsonrpc": "2.0",
-                "id": id,
-                "error": { "code": -32600, "message": "Missing JSON-RPC method" }
-            })),
-        );
-    };
-
-    match method {
-        "initialize" => (
-            StatusCode::OK,
-            Json(serde_json::json!({
-                "jsonrpc": "2.0",
-                "id": id,
-                "result": {
-                    "protocolVersion": "2024-11-05",
-                    "capabilities": { "tools": {} },
-                    "serverInfo": {
-                        "name": state.config.service.name,
-                        "version": state.config.service.version
-                    }
-                }
-            })),
-        ),
-        "notifications/initialized" | "ping" => (
-            StatusCode::OK,
-            Json(serde_json::json!({ "jsonrpc": "2.0", "id": id, "result": {} })),
-        ),
-        "tools/list" => (
-            StatusCode::OK,
-            Json(serde_json::json!({
-                "jsonrpc": "2.0",
-                "id": id,
-                "result": { "tools": mcp_tool_catalog() }
-            })),
-        ),
-        "tools/call" => {
-            let params = req.get("params").cloned().unwrap_or_default();
-            let Some(name) = params.get("name").and_then(|n| n.as_str()) else {
-                return (
-                    StatusCode::OK,
-                    Json(serde_json::json!({
-                        "jsonrpc": "2.0",
-                        "id": id,
-                        "error": { "code": -32602, "message": "Missing params.name" }
-                    })),
-                );
-            };
-            let args = params
-                .get("arguments")
-                .cloned()
-                .unwrap_or_else(|| serde_json::json!({}));
-
-            let out = dispatch_mcp_tool(&state, name, args).await;
-            (StatusCode::OK, mcp_tool_result(id, out))
-        }
-        other => (
-            StatusCode::OK,
-            Json(serde_json::json!({
-                "jsonrpc": "2.0",
-                "id": id,
-                "error": { "code": -32601, "message": format!("Method '{}' not found", other) }
-            })),
-        ),
-    }
-}
-
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -1483,12 +1068,14 @@ mod tests {
                 },
                 sandbox,
                 visuals: crate::visuals::config::VisualsConfig::default(),
+                mcp: crate::mcp::McpConfig::default(),
             }),
             provenance_store: ProvenanceStore::default(),
             algorithm_registry,
             field_catalog: FieldStatisticalCatalog::default(),
             saved_visuals: SavedVisualStore::default(),
             topology_catalog: TopologyCatalog::default(),
+            mcp_server: Arc::new(DataEngineMcpServer::new()),
         }
     }
 
@@ -2113,5 +1700,274 @@ mod tests {
         let mcp_json: serde_json::Value =
             serde_json::from_slice(&mcp_topo.into_body().collect().await.unwrap().to_bytes()).unwrap();
         assert_eq!(mcp_json["result"]["isError"], false);
+    }
+
+    #[tokio::test]
+    async fn test_mcp_protocol_initialize_notifications_ping_and_errors() {
+        let state = test_state();
+        let expected_instructions = state.config.mcp.instructions.clone();
+        let app = build_router(state);
+
+        // 1. initialize returns protocolVersion, capabilities, serverInfo, and instructions
+        let init_resp = app
+            .clone()
+            .oneshot(
+                Request::builder()
+                    .method("POST")
+                    .uri("/mcp")
+                    .header("content-type", "application/json")
+                    .body(Body::from(
+                        serde_json::json!({
+                            "jsonrpc": "2.0",
+                            "id": 1,
+                            "method": "initialize",
+                            "params": {}
+                        })
+                        .to_string(),
+                    ))
+                    .unwrap(),
+            )
+            .await
+            .unwrap();
+        assert_eq!(init_resp.status(), StatusCode::OK);
+        let init_json: serde_json::Value =
+            serde_json::from_slice(&init_resp.into_body().collect().await.unwrap().to_bytes())
+                .unwrap();
+        assert_eq!(init_json["jsonrpc"], "2.0");
+        assert_eq!(init_json["id"], 1);
+        assert_eq!(init_json["result"]["protocolVersion"], "2024-11-05");
+        assert_eq!(init_json["result"]["capabilities"], serde_json::json!({ "tools": {} }));
+        assert_eq!(init_json["result"]["serverInfo"]["name"], "data-engine-mcp");
+        assert_eq!(
+            init_json["result"]["serverInfo"]["version"],
+            env!("CARGO_PKG_VERSION")
+        );
+        assert_eq!(init_json["result"]["instructions"], expected_instructions);
+
+        // 2. notifications/initialized without id -> 204 No Content
+        let notif_resp = app
+            .clone()
+            .oneshot(
+                Request::builder()
+                    .method("POST")
+                    .uri("/mcp")
+                    .header("content-type", "application/json")
+                    .body(Body::from(
+                        serde_json::json!({
+                            "jsonrpc": "2.0",
+                            "method": "notifications/initialized"
+                        })
+                        .to_string(),
+                    ))
+                    .unwrap(),
+            )
+            .await
+            .unwrap();
+        assert_eq!(notif_resp.status(), StatusCode::NO_CONTENT);
+
+        // 3. notifications/initialized with id -> 200 OK {}
+        let notif_id_resp = app
+            .clone()
+            .oneshot(
+                Request::builder()
+                    .method("POST")
+                    .uri("/mcp")
+                    .header("content-type", "application/json")
+                    .body(Body::from(
+                        serde_json::json!({
+                            "jsonrpc": "2.0",
+                            "id": 2,
+                            "method": "notifications/initialized"
+                        })
+                        .to_string(),
+                    ))
+                    .unwrap(),
+            )
+            .await
+            .unwrap();
+        assert_eq!(notif_id_resp.status(), StatusCode::OK);
+        let notif_id_json: serde_json::Value = serde_json::from_slice(
+            &notif_id_resp.into_body().collect().await.unwrap().to_bytes(),
+        )
+        .unwrap();
+        assert_eq!(notif_id_json["id"], 2);
+        assert_eq!(notif_id_json["result"], serde_json::json!({}));
+
+        // 4. ping -> 200 OK {}
+        let ping_resp = app
+            .clone()
+            .oneshot(
+                Request::builder()
+                    .method("POST")
+                    .uri("/mcp")
+                    .header("content-type", "application/json")
+                    .body(Body::from(
+                        serde_json::json!({
+                            "jsonrpc": "2.0",
+                            "id": 3,
+                            "method": "ping"
+                        })
+                        .to_string(),
+                    ))
+                    .unwrap(),
+            )
+            .await
+            .unwrap();
+        assert_eq!(ping_resp.status(), StatusCode::OK);
+        let ping_json: serde_json::Value =
+            serde_json::from_slice(&ping_resp.into_body().collect().await.unwrap().to_bytes())
+                .unwrap();
+        assert_eq!(ping_json["id"], 3);
+        assert_eq!(ping_json["result"], serde_json::json!({}));
+
+        // 5. tools/list -> 12 tools with auto-generated inputSchema
+        let list_resp = app
+            .clone()
+            .oneshot(
+                Request::builder()
+                    .method("POST")
+                    .uri("/mcp")
+                    .header("content-type", "application/json")
+                    .body(Body::from(
+                        serde_json::json!({
+                            "jsonrpc": "2.0",
+                            "id": 4,
+                            "method": "tools/list"
+                        })
+                        .to_string(),
+                    ))
+                    .unwrap(),
+            )
+            .await
+            .unwrap();
+        assert_eq!(list_resp.status(), StatusCode::OK);
+        let list_json: serde_json::Value =
+            serde_json::from_slice(&list_resp.into_body().collect().await.unwrap().to_bytes())
+                .unwrap();
+        let tools = list_json["result"]["tools"].as_array().unwrap();
+        assert_eq!(tools.len(), 12);
+        for tool in tools {
+            assert!(tool["name"].is_string());
+            assert!(tool["description"].is_string());
+            assert_eq!(tool["inputSchema"]["type"], "object");
+        }
+
+        // 6. Missing method -> -32600
+        let no_method_resp = app
+            .clone()
+            .oneshot(
+                Request::builder()
+                    .method("POST")
+                    .uri("/mcp")
+                    .header("content-type", "application/json")
+                    .body(Body::from(
+                        serde_json::json!({
+                            "jsonrpc": "2.0",
+                            "id": 10
+                        })
+                        .to_string(),
+                    ))
+                    .unwrap(),
+            )
+            .await
+            .unwrap();
+        assert_eq!(no_method_resp.status(), StatusCode::OK);
+        let no_method_json: serde_json::Value = serde_json::from_slice(
+            &no_method_resp.into_body().collect().await.unwrap().to_bytes(),
+        )
+        .unwrap();
+        assert_eq!(no_method_json["error"]["code"], -32600);
+
+        // 7. Invalid method -> -32601
+        let bad_method_resp = app
+            .clone()
+            .oneshot(
+                Request::builder()
+                    .method("POST")
+                    .uri("/mcp")
+                    .header("content-type", "application/json")
+                    .body(Body::from(
+                        serde_json::json!({
+                            "jsonrpc": "2.0",
+                            "id": 11,
+                            "method": "nonexistent/method"
+                        })
+                        .to_string(),
+                    ))
+                    .unwrap(),
+            )
+            .await
+            .unwrap();
+        assert_eq!(bad_method_resp.status(), StatusCode::OK);
+        let bad_method_json: serde_json::Value = serde_json::from_slice(
+            &bad_method_resp.into_body().collect().await.unwrap().to_bytes(),
+        )
+        .unwrap();
+        assert_eq!(bad_method_json["error"]["code"], -32601);
+
+        // 8. tools/call missing params.name -> -32602
+        let missing_name_resp = app
+            .oneshot(
+                Request::builder()
+                    .method("POST")
+                    .uri("/mcp")
+                    .header("content-type", "application/json")
+                    .body(Body::from(
+                        serde_json::json!({
+                            "jsonrpc": "2.0",
+                            "id": 12,
+                            "method": "tools/call",
+                            "params": {}
+                        })
+                        .to_string(),
+                    ))
+                    .unwrap(),
+            )
+            .await
+            .unwrap();
+        assert_eq!(missing_name_resp.status(), StatusCode::OK);
+        let missing_name_json: serde_json::Value = serde_json::from_slice(
+            &missing_name_resp.into_body().collect().await.unwrap().to_bytes(),
+        )
+        .unwrap();
+        assert_eq!(missing_name_json["error"]["code"], -32602);
+    }
+
+    #[tokio::test]
+    async fn test_mcp_disabled_returns_404_on_all_mcp_routes() {
+        let mut state = test_state();
+        let mut cfg = (*state.config).clone();
+        cfg.mcp.enabled = false;
+        state.config = Arc::new(cfg);
+
+        let app = build_router(state);
+
+        for uri in ["/mcp", "/api/data-engine/v1/mcp", "/api/v1/mcp"] {
+            let resp = app
+                .clone()
+                .oneshot(
+                    Request::builder()
+                        .method("POST")
+                        .uri(uri)
+                        .header("content-type", "application/json")
+                        .body(Body::from(
+                            serde_json::json!({
+                                "jsonrpc": "2.0",
+                                "id": 1,
+                                "method": "ping"
+                            })
+                            .to_string(),
+                        ))
+                        .unwrap(),
+                )
+                .await
+                .unwrap();
+            assert_eq!(
+                resp.status(),
+                StatusCode::NOT_FOUND,
+                "expected 404 when mcp.enabled=false for {}",
+                uri
+            );
+        }
     }
 }

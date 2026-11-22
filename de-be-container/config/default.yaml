@@ -44,3 +44,8 @@ visuals:
   max_topology_edges: 500
   default_ego_hops: 2
   enable_graphrag_overlay: true
+
+mcp:
+  enabled: true
+  server_name: "data-engine-mcp"
+  instructions: "PolecatWorks Data-Engine Model Context Protocol Server for deterministic statistical analytics, data visualization recommendation and rendering, and semantic topology exploration."
