@@ -940,7 +940,11 @@ mod tests {
             max_code_bytes: 65_536,
             max_sandbox_rows: 100_000,
             max_plot_points: 1000,
-            shm_dir: "/dev/shm".to_string(),
+            shm_dir: if std::path::Path::new("/dev/shm").exists() {
+                "/dev/shm".to_string()
+            } else {
+                std::env::temp_dir().to_string_lossy().to_string()
+            },
             allowed_modules: vec![
                 "math".to_string(),
                 "statistics".to_string(),
