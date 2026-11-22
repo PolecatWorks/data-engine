@@ -93,7 +93,15 @@ fn test_docker_publish_workflows_match_sward_warden_pattern() {
     assert!(fe_yml.contains(
         "kubectl rollout restart deployment/data-engine-fe-nginx-view -n agent-as-data-dev"
     ));
+    assert!(fe_yml.contains(
+        "if: needs.check-paths.outputs.fe == 'true' && needs.check-paths.outputs.fe_dir_exists == 'true' && needs.check-image.outputs.exists != 'true'"
+    ));
     assert!(fe_yml.contains("name: DE-FE CI Success"));
+
+    let readme = fs::read_to_string(workflows_dir.join("readme.md"))
+        .expect("read .github/workflows/readme.md");
+    assert!(readme.contains("agent-as-data-dev"));
+    assert!(!readme.contains("data-engine-dev"));
 }
 
 #[test]

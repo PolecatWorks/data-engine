@@ -40,7 +40,7 @@ Both workflows are triggered on:
 5. **`docs`** (Backend on `push` to `main`):
    * Generates Rust documentation (`cargo doc --no-deps`) and publishes it to `gh-pages` under `docs/rust` using sparse checkout.
 6. **`rollout-dev`** (on `push` to `main`):
-   * Triggers a rolling restart of `data-engine-be` / `data-engine-fe-nginx-view` in `data-engine-dev` on `polecatworks-runner`.
+   * Triggers a rolling restart of `data-engine-be` / `data-engine-fe-nginx-view` in `agent-as-data-dev` on `polecatworks-runner`.
 7. **`ci-success`**: Evaluates overall job success, allowing success if the builds were skipped because the image already existed.
 
 ### Workflow Logic
