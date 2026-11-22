@@ -1,7 +1,7 @@
 # Spec 09: Angular Native Federation MFE & Shared Canvas Remote (`de-fe-container`)
 
 ## Status
-`draft`
+`complete`
 
 ## Overview
 Implements `de-fe-container` as specified in [mfe-frontend-canvas-prd.md](../prds/mfe-frontend-canvas-prd.md).

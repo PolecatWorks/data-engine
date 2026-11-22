@@ -1,6 +1,6 @@
 # PolecatWorks Data-Engine Makefile
 
-.PHONY: help build test test-be seed-validation-suite preflight clean \
+.PHONY: help build build-fe test test-be test-fe seed-validation-suite preflight clean \
         de-be-docker de-fe-docker helm-lint helm-package \
         garden-up garden-test garden-down squash-gh-pages
 
@@ -11,7 +11,9 @@ ROBOT_REPORT_DIR := integration-tests/reports
 help:
 	@echo "PolecatWorks Data-Engine Targets:"
 	@echo "  make build                  - Build de-be-container Rust backend"
+	@echo "  make build-fe               - Build de-fe-container Angular MFE"
 	@echo "  make test                   - Run all backend unit and integration tests"
+	@echo "  make test-fe                - Run de-fe-container Vitest unit tests"
 	@echo "  make preflight              - Validate configuration and CLI preflight"
 	@echo "  make seed-validation-suite  - Generate deterministic Parquet chaos & drift suite"
 	@echo "  make de-be-docker           - Build production Docker image for backend"
@@ -25,6 +27,9 @@ help:
 build:
 	cargo build --manifest-path de-be-container/Cargo.toml
 
+build-fe:
+	cd de-fe-container && npm run build
+
 setup-sandbox-venv:
 	@if [ ! -x .venv-sandbox/bin/python3 ]; then \
 		python3 -m venv .venv-sandbox && .venv-sandbox/bin/pip install -r de-be-container/requirements-sandbox.txt; \
@@ -35,6 +40,9 @@ test: test-be
 test-be:
 	@PY_BIN=$$(if [ -x "$(CURDIR)/.venv-sandbox/bin/python3" ]; then echo "$(CURDIR)/.venv-sandbox/bin/python3"; elif [ -x "/opt/de-venv/bin/python3" ]; then echo "/opt/de-venv/bin/python3"; else echo "python3"; fi); \
 	DE_BE__SANDBOX__PYTHON_BINARY="$$PY_BIN" cargo test --manifest-path de-be-container/Cargo.toml -- --test-threads=1
+
+test-fe:
+	cd de-fe-container && npm run test
 
 preflight:
 	cargo run --manifest-path de-be-container/Cargo.toml -- -c de-be-container/config/default.yaml preflight
