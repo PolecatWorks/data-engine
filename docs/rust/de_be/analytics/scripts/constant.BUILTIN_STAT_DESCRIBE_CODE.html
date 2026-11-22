@@ -1,0 +1,171 @@
+<!DOCTYPE html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1.0"><meta name="generator" content="rustdoc"><meta name="description" content="API documentation for the Rust `BUILTIN_STAT_DESCRIBE_CODE` constant in crate `de_be`."><title>BUILTIN_STAT_DESCRIBE_CODE in de_be::analytics::scripts - Rust</title><script>if(window.location.protocol!=="file:")document.head.insertAdjacentHTML("beforeend","SourceSerif4-Regular-6b053e98.ttf.woff2,FiraSans-Italic-81dc35de.woff2,FiraSans-Regular-0fe48ade.woff2,FiraSans-MediumItalic-ccf7e434.woff2,FiraSans-Medium-e1aa3f0a.woff2,SourceCodePro-Regular-8badfe75.ttf.woff2,SourceCodePro-Semibold-aa29a496.ttf.woff2".split(",").map(f=>`<link rel="preload" as="font" type="font/woff2"href="../../../static.files/${f}">`).join(""))</script><link rel="stylesheet" href="../../../static.files/normalize-9960930a.css"><link rel="stylesheet" href="../../../static.files/rustdoc-203241e4.css"><meta name="rustdoc-vars" data-root-path="../../../" data-static-root-path="../../../static.files/" data-current-crate="de_be" data-themes="" data-resource-suffix="" data-rustdoc-version="1.100.0 (0ef1bc386 2026-11-09)" data-channel="1.100.0" data-search-js="search-b167f383.js" data-stringdex-js="stringdex-b5109af9.js" data-settings-js="settings-170eb4bf.js" ><script src="../../../static.files/storage-41dd4d93.js"></script><script defer src="sidebar-items.js"></script><script defer src="../../../static.files/main-1814ead3.js"></script><noscript><link rel="stylesheet" href="../../../static.files/noscript-9f56287d.css"></noscript><link rel="alternate icon" type="image/png" href="../../../static.files/favicon-32x32-eab170b8.png"><link rel="icon" type="image/svg+xml" href="../../../static.files/favicon-044be391.svg"></head><body class="rustdoc constant"><a class="skip-main-content" href="#main-content">Skip to main content</a><!--[if lte IE 11]><div class="warning">This old browser is unsupported and will most likely display funky things.</div><![endif]--><rustdoc-topbar><h2><a href="#">BUILTIN_STAT_DESCRIBE_CODE</a></h2></rustdoc-topbar><nav class="sidebar"><div class="sidebar-crate"><h2><a href="../../../de_be/index.html">de_be</a><span class="version">0.1.0</span></h2></div><div class="sidebar-elems"><div id="rustdoc-modnav"><h2><a href="index.html">In de_<wbr>be::<wbr>analytics::<wbr>scripts</a></h2></div></div></nav><div class="sidebar-resizer" title="Drag to resize sidebar"></div><main><div class="width-limiter"><section id="main-content" class="content" tabindex="-1"><div class="main-heading"><div class="rustdoc-breadcrumbs"><a href="../../index.html">de_be</a>::<wbr><a href="../index.html">analytics</a>::<wbr><a href="index.html">scripts</a></div><h1>Constant <span class="constant">BUILTIN_<wbr>STAT_<wbr>DESCRIBE_<wbr>CODE</span>&nbsp;<button id="copy-path" title="Copy item path to clipboard">Copy item path</button></h1><rustdoc-toolbar></rustdoc-toolbar><span class="sub-heading"><a class="src" href="../../../src/de_be/analytics/scripts.rs.html#5-175">Source</a> </span></div><pre class="rust item-decl"><code>pub const BUILTIN_STAT_DESCRIBE_CODE: &amp;<a class="primitive" href="https://doc.rust-lang.org/1.100.0/std/primitive.str.html">str</a> = r#&quot;
+import math
+import numpy as np
+from scipy import stats
+
+def _downsample_pairs(xs, ys, max_pts):
+    n = len(xs)
+    if n &lt;= max_pts:
+        return [[round(float(a), 6), round(float(b), 6)] for a, b in zip(xs, ys)]
+    idx = np.linspace(0, n - 1, max_pts, dtype=int)
+    return [[round(float(xs[i]), 6), round(float(ys[i]), 6)] for i in idx]
+
+def run(inputs, params):
+    tbl = inputs[&quot;data&quot;]
+    columns = params.get(&quot;columns&quot;, [])
+    dataset_name = params.get(&quot;dataset_name&quot;, &quot;dataset&quot;)
+    max_pts = int(params.get(&quot;max_plot_points&quot;, 1000))
+
+    col_stats = {}
+    assumption_checks = []
+    diagnostic_plots = []
+    learned_field_traits = []
+
+    for col in columns:
+        arr_py = tbl.column(col).to_pylist()
+        total_n = len(arr_py)
+        clean = [float(v) for v in arr_py if v is not None and not (isinstance(v, float) and math.isnan(v))]
+        n = len(clean)
+        null_count = total_n - n
+        null_ratio = float(null_count) / float(total_n) if total_n &gt; 0 else 0.0
+
+        if n == 0:
+            col_stats[col] = {&quot;count&quot;: 0, &quot;null_count&quot;: null_count, &quot;null_ratio&quot;: null_ratio}
+            assumption_checks.append({
+                &quot;check&quot;: f&quot;sample_size_{col}&quot;,
+                &quot;status&quot;: &quot;failed&quot;,
+                &quot;statistic&quot;: 0.0,
+                &quot;p_value&quot;: None,
+                &quot;message&quot;: f&quot;Column &#39;{col}&#39; has zero non-null numeric observations.&quot;
+            })
+            continue
+
+        x = np.asarray(clean, dtype=np.float64)
+        mean_val = float(np.mean(x))
+        std_val = float(np.std(x, ddof=1)) if n &gt; 1 else 0.0
+        var_val = float(np.var(x, ddof=1)) if n &gt; 1 else 0.0
+        skew_val = float(stats.skew(x, bias=False)) if n &gt; 2 and std_val &gt; 0.0 else 0.0
+        kurt_val = float(stats.kurtosis(x, fisher=True, bias=False)) if n &gt; 3 and std_val &gt; 0.0 else 0.0
+
+        q_probs = [0.01, 0.05, 0.25, 0.50, 0.75, 0.95, 0.99]
+        q_vals = [float(v) for v in np.quantile(x, q_probs)]
+        q_map = {
+            &quot;p1&quot;: q_vals[0], &quot;p5&quot;: q_vals[1], &quot;p25&quot;: q_vals[2],
+            &quot;p50&quot;: q_vals[3], &quot;p75&quot;: q_vals[4], &quot;p95&quot;: q_vals[5], &quot;p99&quot;: q_vals[6],
+        }
+        iqr = q_map[&quot;p75&quot;] - q_map[&quot;p25&quot;]
+        med = q_map[&quot;p50&quot;]
+        mad = float(np.median(np.abs(x - med)))
+
+        lower_fence = q_map[&quot;p25&quot;] - 1.5 * iqr
+        upper_fence = q_map[&quot;p75&quot;] + 1.5 * iqr
+        iqr_outliers = int(np.sum((x &lt; lower_fence) | (x &gt; upper_fence)))
+        if mad &gt; 0.0:
+            mod_z = 0.6745 * (x - med) / mad
+            mod_z_outliers = int(np.sum(np.abs(mod_z) &gt; 3.5))
+        else:
+            mod_z_outliers = 0
+
+        if std_val == 0.0:
+            norm_stat, norm_p, norm_method = 0.0, 0.0, &quot;zero_variance&quot;
+            norm_status = &quot;failed&quot;
+        elif n &lt;= 5000 and n &gt;= 3:
+            res = stats.shapiro(x)
+            norm_stat, norm_p, norm_method = float(res.statistic), float(res.pvalue), &quot;shapiro_wilk&quot;
+            norm_status = &quot;passed&quot; if norm_p &gt;= 0.05 else &quot;failed&quot;
+        elif n &gt; 5000:
+            res = stats.normaltest(x)
+            norm_stat, norm_p, norm_method = float(res.statistic), float(res.pvalue), &quot;dagostino_pearson&quot;
+            norm_status = &quot;passed&quot; if norm_p &gt;= 0.05 else &quot;failed&quot;
+        else:
+            norm_stat, norm_p, norm_method = 0.0, 1.0, &quot;insufficient_n&quot;
+            norm_status = &quot;warning&quot;
+
+        is_heavy_tailed = bool(abs(skew_val) &gt; 1.5 or kurt_val &gt; 3.0 or (n &gt; 0 and mod_z_outliers / float(n) &gt; 0.01))
+        if std_val == 0.0:
+            dist_family = &quot;constant&quot;
+            rec_family = &quot;none&quot;
+        elif is_heavy_tailed and float(np.min(x)) &gt;= 0.0 and skew_val &gt; 1.0:
+            dist_family = &quot;log_normal_heavy_tailed&quot;
+            rec_family = &quot;non_parametric_or_log_transform&quot;
+        elif norm_status == &quot;passed&quot;:
+            dist_family = &quot;normal&quot;
+            rec_family = &quot;parametric_welch_t&quot;
+        else:
+            dist_family = &quot;non_normal&quot;
+            rec_family = &quot;non_parametric&quot;
+
+        col_stats[col] = {
+            &quot;count&quot;: n,
+            &quot;null_count&quot;: null_count,
+            &quot;null_ratio&quot;: round(null_ratio, 6),
+            &quot;mean&quot;: mean_val,
+            &quot;std&quot;: std_val,
+            &quot;variance&quot;: var_val,
+            &quot;skewness&quot;: skew_val,
+            &quot;excess_kurtosis&quot;: kurt_val,
+            &quot;quantiles&quot;: q_map,
+            &quot;iqr&quot;: iqr,
+            &quot;mad&quot;: mad,
+            &quot;iqr_outlier_count&quot;: iqr_outliers,
+            &quot;modified_z_outlier_count&quot;: mod_z_outliers,
+            &quot;normality_test&quot;: {&quot;method&quot;: norm_method, &quot;statistic&quot;: norm_stat, &quot;p_value&quot;: norm_p},
+            &quot;is_heavy_tailed&quot;: is_heavy_tailed,
+            &quot;distribution_family&quot;: dist_family,
+        }
+
+        assumption_checks.append({
+            &quot;check&quot;: f&quot;normality_{col}&quot;,
+            &quot;status&quot;: norm_status,
+            &quot;statistic&quot;: round(norm_stat, 6),
+            &quot;p_value&quot;: round(norm_p, 6),
+            &quot;message&quot;: f&quot;{norm_method} for &#39;{col}&#39;: p={norm_p:.4g}, skew={skew_val:.3f}, excess_kurt={kurt_val:.3f}, outliers(mod_z)={mod_z_outliers}.&quot;
+        })
+
+        # Histogram &amp; Q-Q plot bounded to max_pts
+        bins = min(30, max(5, int(math.sqrt(n))))
+        counts, edges = np.histogram(x, bins=bins)
+        diagnostic_plots.append({
+            &quot;plot_type&quot;: &quot;distribution_histogram&quot;,
+            &quot;title&quot;: f&quot;Distribution of {col}&quot;,
+            &quot;series&quot;: [{
+                &quot;name&quot;: col,
+                &quot;bins&quot;: [round(float(e), 6) for e in edges[:max_pts]],
+                &quot;counts&quot;: [int(c) for c in counts[:max_pts]],
+            }]
+        })
+
+        sorted_x = np.sort(x)
+        probs = (np.arange(1, n + 1) - 0.5) / float(n)
+        theo_q = stats.norm.ppf(probs)
+        diagnostic_plots.append({
+            &quot;plot_type&quot;: &quot;qq_plot&quot;,
+            &quot;title&quot;: f&quot;Normal Q-Q Plot ({col})&quot;,
+            &quot;series&quot;: [{
+                &quot;name&quot;: col,
+                &quot;points&quot;: _downsample_pairs(theo_q, sorted_x, max_pts),
+            }]
+        })
+
+        learned_field_traits.append({
+            &quot;field_canonical_id&quot;: f&quot;{dataset_name}.{col}&quot;,
+            &quot;distribution_family&quot;: dist_family,
+            &quot;is_heavy_tailed&quot;: is_heavy_tailed,
+            &quot;skewness&quot;: round(skew_val, 4),
+            &quot;kurtosis&quot;: round(kurt_val, 4),
+            &quot;seasonality_period&quot;: None,
+            &quot;recommended_test_family&quot;: rec_family,
+            &quot;known_confounders&quot;: [],
+            &quot;epistemic_status&quot;: &quot;empirically_tested&quot;,
+            &quot;confidence&quot;: 0.92 if n &gt;= 30 else 0.70,
+        })
+
+    return {
+        &quot;primary_result&quot;: {&quot;columns&quot;: col_stats},
+        &quot;assumption_checks&quot;: assumption_checks,
+        &quot;recommended_alternative&quot;: None,
+        &quot;diagnostic_plots&quot;: diagnostic_plots,
+        &quot;learned_field_traits&quot;: learned_field_traits,
+        &quot;group_sizes&quot;: {},
+    }
+&quot;#;</code></pre></section></div></main></body></html>

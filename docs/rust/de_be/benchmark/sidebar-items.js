@@ -1,1 +1,1 @@
-window.SIDEBAR_ITEMS = {"enum":["BenchmarkError"],"fn":["run_ablation_benchmark","summarize_mode"],"struct":["AblationScorecard","ModeEvaluationSummary","TrapCaseResult"]};
+window.SIDEBAR_ITEMS = {"enum":["BenchmarkError"],"fn":["run_ablation_benchmark","run_statistical_traps_benchmark","summarize_mode"],"struct":["AblationScorecard","ModeEvaluationSummary","StatTrapCaseResult","StatisticalTrapsScorecard","TrapCaseResult"]};

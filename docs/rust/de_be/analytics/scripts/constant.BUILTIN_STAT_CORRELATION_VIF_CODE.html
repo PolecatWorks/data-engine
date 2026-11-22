@@ -1,0 +1,129 @@
+<!DOCTYPE html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1.0"><meta name="generator" content="rustdoc"><meta name="description" content="API documentation for the Rust `BUILTIN_STAT_CORRELATION_VIF_CODE` constant in crate `de_be`."><title>BUILTIN_STAT_CORRELATION_VIF_CODE in de_be::analytics::scripts - Rust</title><script>if(window.location.protocol!=="file:")document.head.insertAdjacentHTML("beforeend","SourceSerif4-Regular-6b053e98.ttf.woff2,FiraSans-Italic-81dc35de.woff2,FiraSans-Regular-0fe48ade.woff2,FiraSans-MediumItalic-ccf7e434.woff2,FiraSans-Medium-e1aa3f0a.woff2,SourceCodePro-Regular-8badfe75.ttf.woff2,SourceCodePro-Semibold-aa29a496.ttf.woff2".split(",").map(f=>`<link rel="preload" as="font" type="font/woff2"href="../../../static.files/${f}">`).join(""))</script><link rel="stylesheet" href="../../../static.files/normalize-9960930a.css"><link rel="stylesheet" href="../../../static.files/rustdoc-203241e4.css"><meta name="rustdoc-vars" data-root-path="../../../" data-static-root-path="../../../static.files/" data-current-crate="de_be" data-themes="" data-resource-suffix="" data-rustdoc-version="1.100.0 (0ef1bc386 2026-11-09)" data-channel="1.100.0" data-search-js="search-b167f383.js" data-stringdex-js="stringdex-b5109af9.js" data-settings-js="settings-170eb4bf.js" ><script src="../../../static.files/storage-41dd4d93.js"></script><script defer src="sidebar-items.js"></script><script defer src="../../../static.files/main-1814ead3.js"></script><noscript><link rel="stylesheet" href="../../../static.files/noscript-9f56287d.css"></noscript><link rel="alternate icon" type="image/png" href="../../../static.files/favicon-32x32-eab170b8.png"><link rel="icon" type="image/svg+xml" href="../../../static.files/favicon-044be391.svg"></head><body class="rustdoc constant"><a class="skip-main-content" href="#main-content">Skip to main content</a><!--[if lte IE 11]><div class="warning">This old browser is unsupported and will most likely display funky things.</div><![endif]--><rustdoc-topbar><h2><a href="#">BUILTIN_STAT_CORRELATION_VIF_CODE</a></h2></rustdoc-topbar><nav class="sidebar"><div class="sidebar-crate"><h2><a href="../../../de_be/index.html">de_be</a><span class="version">0.1.0</span></h2></div><div class="sidebar-elems"><div id="rustdoc-modnav"><h2><a href="index.html">In de_<wbr>be::<wbr>analytics::<wbr>scripts</a></h2></div></div></nav><div class="sidebar-resizer" title="Drag to resize sidebar"></div><main><div class="width-limiter"><section id="main-content" class="content" tabindex="-1"><div class="main-heading"><div class="rustdoc-breadcrumbs"><a href="../../index.html">de_be</a>::<wbr><a href="../index.html">analytics</a>::<wbr><a href="index.html">scripts</a></div><h1>Constant <span class="constant">BUILTIN_<wbr>STAT_<wbr>CORRELATION_<wbr>VIF_<wbr>CODE</span>&nbsp;<button id="copy-path" title="Copy item path to clipboard">Copy item path</button></h1><rustdoc-toolbar></rustdoc-toolbar><span class="sub-heading"><a class="src" href="../../../src/de_be/analytics/scripts.rs.html#783-911">Source</a> </span></div><pre class="rust item-decl"><code>pub const BUILTIN_STAT_CORRELATION_VIF_CODE: &amp;<a class="primitive" href="https://doc.rust-lang.org/1.100.0/std/primitive.str.html">str</a> = r#&quot;
+import math
+import numpy as np
+from scipy import stats
+import statsmodels.api as sm
+from statsmodels.stats.outliers_influence import variance_inflation_factor
+from statsmodels.stats.multitest import multipletests
+
+def run(inputs, params):
+    tbl = inputs[&quot;data&quot;]
+    columns = params.get(&quot;columns&quot;, [])
+    methods = params.get(&quot;methods&quot;, [&quot;pearson&quot;, &quot;spearman&quot;])
+    control_cols = params.get(&quot;control_cols&quot;, [])
+    correction = params.get(&quot;correction&quot;, &quot;fdr_bh&quot;)
+
+    all_cols = list(dict.fromkeys(list(columns) + list(control_cols)))
+    raw_cols = {c: tbl.column(c).to_pylist() for c in all_cols}
+    n_total = len(raw_cols[all_cols[0]]) if all_cols else 0
+
+    valid_idx = [
+        i for i in range(n_total)
+        if all(raw_cols[c][i] is not None and not (isinstance(raw_cols[c][i], float) and math.isnan(raw_cols[c][i])) for c in all_cols)
+    ]
+    mat = {c: np.asarray([float(raw_cols[c][i]) for i in valid_idx], dtype=np.float64) for c in all_cols}
+    n = len(valid_idx)
+
+    pairs = []
+    raw_pvals = []
+    assumption_checks = []
+
+    for i in range(len(columns)):
+        for j in range(i + 1, len(columns)):
+            c1, c2 = columns[i], columns[j]
+            x, y = mat[c1], mat[c2]
+            entry = {&quot;col_a&quot;: c1, &quot;col_b&quot;: c2, &quot;n&quot;: n}
+            if &quot;pearson&quot; in methods:
+                r, p = stats.pearsonr(x, y)
+                entry[&quot;pearson_r&quot;] = float(r)
+                entry[&quot;pearson_p&quot;] = float(p)
+                raw_pvals.append(float(p))
+            if &quot;spearman&quot; in methods:
+                rho, p_s = stats.spearmanr(x, y)
+                entry[&quot;spearman_rho&quot;] = float(rho)
+                entry[&quot;spearman_p&quot;] = float(p_s)
+            if &quot;kendall&quot; in methods:
+                tau, p_k = stats.kendalltau(x, y)
+                entry[&quot;kendall_tau&quot;] = float(tau)
+                entry[&quot;kendall_p&quot;] = float(p_k)
+
+            if &quot;pearson_r&quot; in entry and &quot;spearman_rho&quot; in entry:
+                div = abs(entry[&quot;pearson_r&quot;] - entry[&quot;spearman_rho&quot;])
+                if div &gt; 0.15:
+                    assumption_checks.append({
+                        &quot;check&quot;: f&quot;pearson_spearman_divergence_{c1}_{c2}&quot;,
+                        &quot;status&quot;: &quot;warning&quot;,
+                        &quot;statistic&quot;: round(div, 4),
+                        &quot;p_value&quot;: None,
+                        &quot;message&quot;: f&quot;|r - rho| = {div:.3f} &gt; 0.15 between &#39;{c1}&#39; and &#39;{c2}&#39; (possible outliers or non-linearity).&quot;
+                    })
+
+            if control_cols:
+                ctrl_mat = sm.add_constant(np.column_stack([mat[cc] for cc in control_cols]))
+                res_x = sm.OLS(x, ctrl_mat).fit().resid
+                res_y = sm.OLS(y, ctrl_mat).fit().resid
+                pr, pp = stats.pearsonr(res_x, res_y)
+                entry[&quot;partial_pearson_r&quot;] = float(pr)
+                entry[&quot;partial_pearson_p&quot;] = float(pp)
+
+            pairs.append(entry)
+
+    if raw_pvals and correction and correction != &quot;none&quot;:
+        _, p_adj, _, _ = multipletests(raw_pvals, method=correction)
+        for entry, pa in zip(pairs, p_adj):
+            entry[&quot;pearson_p_adjusted&quot;] = float(pa)
+
+    vif_map = {}
+    cond_num = None
+    if len(columns) &gt;= 2 and n &gt; len(columns) + 1:
+        X = np.column_stack([mat[c] for c in columns])
+        X_const = sm.add_constant(X)
+        cond_num = float(np.linalg.cond(X_const))
+        for idx, c in enumerate(columns):
+            vif_val = float(variance_inflation_factor(X_const, idx + 1))
+            vif_map[c] = vif_val
+            if vif_val &gt; 10.0:
+                assumption_checks.append({
+                    &quot;check&quot;: f&quot;vif_multicollinearity_{c}&quot;,
+                    &quot;status&quot;: &quot;failed&quot;,
+                    &quot;statistic&quot;: round(vif_val, 4),
+                    &quot;p_value&quot;: None,
+                    &quot;message&quot;: f&quot;Severe multicollinearity: VIF({c}) = {vif_val:.2f} &gt; 10.&quot;
+                })
+            elif vif_val &gt; 5.0:
+                assumption_checks.append({
+                    &quot;check&quot;: f&quot;vif_multicollinearity_{c}&quot;,
+                    &quot;status&quot;: &quot;warning&quot;,
+                    &quot;statistic&quot;: round(vif_val, 4),
+                    &quot;p_value&quot;: None,
+                    &quot;message&quot;: f&quot;Moderate multicollinearity: VIF({c}) = {vif_val:.2f} &gt; 5.&quot;
+                })
+
+    if not assumption_checks:
+        assumption_checks.append({
+            &quot;check&quot;: &quot;correlation_and_vif_diagnostics&quot;,
+            &quot;status&quot;: &quot;passed&quot;,
+            &quot;statistic&quot;: round(max(vif_map.values()) if vif_map else 1.0, 4),
+            &quot;p_value&quot;: None,
+            &quot;message&quot;: &quot;No severe multicollinearity (VIF &lt;= 5) or Pearson/Spearman divergence detected.&quot;
+        })
+
+    return {
+        &quot;primary_result&quot;: {
+            &quot;n&quot;: n,
+            &quot;adjustment_method&quot;: correction if correction != &quot;none&quot; else None,
+            &quot;pairs&quot;: pairs,
+            &quot;vif&quot;: vif_map,
+            &quot;condition_number&quot;: cond_num,
+        },
+        &quot;assumption_checks&quot;: assumption_checks,
+        &quot;recommended_alternative&quot;: None,
+        &quot;diagnostic_plots&quot;: [{
+            &quot;plot_type&quot;: &quot;correlation_heatmap&quot;,
+            &quot;title&quot;: &quot;Pairwise Correlation Matrix&quot;,
+            &quot;series&quot;: pairs,
+        }],
+        &quot;learned_field_traits&quot;: [],
+        &quot;group_sizes&quot;: {},
+    }
+&quot;#;</code></pre></section></div></main></body></html>

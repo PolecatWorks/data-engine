@@ -1,0 +1,248 @@
+<!DOCTYPE html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1.0"><meta name="generator" content="rustdoc"><meta name="description" content="API documentation for the Rust `BUILTIN_STAT_REGRESSION_CODE` constant in crate `de_be`."><title>BUILTIN_STAT_REGRESSION_CODE in de_be::analytics::scripts - Rust</title><script>if(window.location.protocol!=="file:")document.head.insertAdjacentHTML("beforeend","SourceSerif4-Regular-6b053e98.ttf.woff2,FiraSans-Italic-81dc35de.woff2,FiraSans-Regular-0fe48ade.woff2,FiraSans-MediumItalic-ccf7e434.woff2,FiraSans-Medium-e1aa3f0a.woff2,SourceCodePro-Regular-8badfe75.ttf.woff2,SourceCodePro-Semibold-aa29a496.ttf.woff2".split(",").map(f=>`<link rel="preload" as="font" type="font/woff2"href="../../../static.files/${f}">`).join(""))</script><link rel="stylesheet" href="../../../static.files/normalize-9960930a.css"><link rel="stylesheet" href="../../../static.files/rustdoc-203241e4.css"><meta name="rustdoc-vars" data-root-path="../../../" data-static-root-path="../../../static.files/" data-current-crate="de_be" data-themes="" data-resource-suffix="" data-rustdoc-version="1.100.0 (0ef1bc386 2026-11-09)" data-channel="1.100.0" data-search-js="search-b167f383.js" data-stringdex-js="stringdex-b5109af9.js" data-settings-js="settings-170eb4bf.js" ><script src="../../../static.files/storage-41dd4d93.js"></script><script defer src="sidebar-items.js"></script><script defer src="../../../static.files/main-1814ead3.js"></script><noscript><link rel="stylesheet" href="../../../static.files/noscript-9f56287d.css"></noscript><link rel="alternate icon" type="image/png" href="../../../static.files/favicon-32x32-eab170b8.png"><link rel="icon" type="image/svg+xml" href="../../../static.files/favicon-044be391.svg"></head><body class="rustdoc constant"><a class="skip-main-content" href="#main-content">Skip to main content</a><!--[if lte IE 11]><div class="warning">This old browser is unsupported and will most likely display funky things.</div><![endif]--><rustdoc-topbar><h2><a href="#">BUILTIN_STAT_REGRESSION_CODE</a></h2></rustdoc-topbar><nav class="sidebar"><div class="sidebar-crate"><h2><a href="../../../de_be/index.html">de_be</a><span class="version">0.1.0</span></h2></div><div class="sidebar-elems"><div id="rustdoc-modnav"><h2><a href="index.html">In de_<wbr>be::<wbr>analytics::<wbr>scripts</a></h2></div></div></nav><div class="sidebar-resizer" title="Drag to resize sidebar"></div><main><div class="width-limiter"><section id="main-content" class="content" tabindex="-1"><div class="main-heading"><div class="rustdoc-breadcrumbs"><a href="../../index.html">de_be</a>::<wbr><a href="../index.html">analytics</a>::<wbr><a href="index.html">scripts</a></div><h1>Constant <span class="constant">BUILTIN_<wbr>STAT_<wbr>REGRESSION_<wbr>CODE</span>&nbsp;<button id="copy-path" title="Copy item path to clipboard">Copy item path</button></h1><rustdoc-toolbar></rustdoc-toolbar><span class="sub-heading"><a class="src" href="../../../src/de_be/analytics/scripts.rs.html#913-1160">Source</a> </span></div><pre class="rust item-decl"><code>pub const BUILTIN_STAT_REGRESSION_CODE: &amp;<a class="primitive" href="https://doc.rust-lang.org/1.100.0/std/primitive.str.html">str</a> = r#&quot;
+import math
+import numpy as np
+from scipy import stats
+import statsmodels.api as sm
+from statsmodels.stats.diagnostic import het_breuschpagan
+from statsmodels.stats.stattools import durbin_watson
+from statsmodels.stats.outliers_influence import variance_inflation_factor
+
+def _downsample_pairs(xs, ys, max_pts):
+    n = len(xs)
+    if n &lt;= max_pts:
+        return [[round(float(a), 6), round(float(b), 6)] for a, b in zip(xs, ys)]
+    idx = np.linspace(0, n - 1, max_pts, dtype=int)
+    return [[round(float(xs[i]), 6), round(float(ys[i]), 6)] for i in idx]
+
+def run(inputs, params):
+    tbl = inputs[&quot;data&quot;]
+    model_type = params.get(&quot;model_type&quot;, &quot;ols&quot;)
+    target_col = params[&quot;target_col&quot;]
+    feature_cols = params[&quot;feature_cols&quot;]
+    add_intercept = bool(params.get(&quot;add_intercept&quot;, True))
+    max_pts = int(params.get(&quot;max_plot_points&quot;, 1000))
+
+    cols = [target_col] + list(feature_cols)
+    raw = {c: tbl.column(c).to_pylist() for c in cols}
+    n_total = len(raw[target_col])
+    valid_idx = [
+        i for i in range(n_total)
+        if all(raw[c][i] is not None and not (isinstance(raw[c][i], float) and math.isnan(raw[c][i])) for c in cols)
+    ]
+    y = np.asarray([float(raw[target_col][i]) for i in valid_idx], dtype=np.float64)
+    X_raw = np.column_stack([np.asarray([float(raw[c][i]) for i in valid_idx], dtype=np.float64) for c in feature_cols])
+    n = len(y)
+
+    if add_intercept:
+        X = sm.add_constant(X_raw, has_constant=&quot;add&quot;)
+        param_names = [&quot;const&quot;] + list(feature_cols)
+    else:
+        X = X_raw
+        param_names = list(feature_cols)
+
+    assumption_checks = []
+    recommended_alternative = None
+
+    if model_type == &quot;ols&quot;:
+        fit = sm.OLS(y, X).fit()
+        hc3_fit = fit.get_robustcov_results(cov_type=&quot;HC3&quot;)
+        fitted = np.asarray(fit.fittedvalues, dtype=np.float64)
+        resid = np.asarray(fit.resid, dtype=np.float64)
+        ci_arr = fit.conf_int()
+
+        coefs = []
+        for idx, pname in enumerate(param_names):
+            coefs.append({
+                &quot;name&quot;: pname,
+                &quot;estimate&quot;: float(fit.params[idx]),
+                &quot;std_err&quot;: float(fit.bse[idx]),
+                &quot;hc3_std_err&quot;: float(hc3_fit.bse[idx]),
+                &quot;t_stat&quot;: float(fit.tvalues[idx]),
+                &quot;p_value&quot;: float(fit.pvalues[idx]),
+                &quot;hc3_p_value&quot;: float(hc3_fit.pvalues[idx]),
+                &quot;ci_lower&quot;: float(ci_arr[idx, 0]),
+                &quot;ci_upper&quot;: float(ci_arr[idx, 1]),
+            })
+
+        # Breusch-Pagan heteroscedasticity
+        bp_stat, bp_p, _, _ = het_breuschpagan(resid, X)
+        bp_status = &quot;passed&quot; if float(bp_p) &gt;= 0.05 else &quot;failed&quot;
+        assumption_checks.append({
+            &quot;check&quot;: &quot;homoscedasticity_breusch_pagan&quot;,
+            &quot;status&quot;: bp_status,
+            &quot;statistic&quot;: round(float(bp_stat), 6),
+            &quot;p_value&quot;: round(float(bp_p), 6),
+            &quot;message&quot;: f&quot;Breusch-Pagan LM={bp_stat:.4f}, p={bp_p:.4g}&quot;
+        })
+
+        # Durbin-Watson autocorrelation
+        dw = float(durbin_watson(resid))
+        dw_status = &quot;passed&quot; if 1.5 &lt;= dw &lt;= 2.5 else &quot;warning&quot;
+        assumption_checks.append({
+            &quot;check&quot;: &quot;residual_autocorrelation_durbin_watson&quot;,
+            &quot;status&quot;: dw_status,
+            &quot;statistic&quot;: round(dw, 4),
+            &quot;p_value&quot;: None,
+            &quot;message&quot;: f&quot;Durbin-Watson = {dw:.3f} (ideal ~2.0)&quot;
+        })
+
+        # Residual normality
+        if 3 &lt;= n &lt;= 5000:
+            rn = stats.shapiro(resid)
+            rn_stat, rn_p = float(rn.statistic), float(rn.pvalue)
+        else:
+            rn = stats.normaltest(resid)
+            rn_stat, rn_p = float(rn.statistic), float(rn.pvalue)
+        assumption_checks.append({
+            &quot;check&quot;: &quot;residual_normality&quot;,
+            &quot;status&quot;: &quot;passed&quot; if rn_p &gt;= 0.05 else &quot;warning&quot;,
+            &quot;statistic&quot;: round(rn_stat, 6),
+            &quot;p_value&quot;: round(rn_p, 6),
+            &quot;message&quot;: f&quot;Residual normality p={rn_p:.4g}&quot;
+        })
+
+        # Cook&#39;s distance influential points
+        infl = fit.get_influence()
+        cooks_d, _ = infl.cooks_distance
+        cooks_thresh = 4.0 / float(n)
+        influential_count = int(np.sum(cooks_d &gt; cooks_thresh))
+        assumption_checks.append({
+            &quot;check&quot;: &quot;influential_outliers_cooks_d&quot;,
+            &quot;status&quot;: &quot;passed&quot; if influential_count == 0 else &quot;warning&quot;,
+            &quot;statistic&quot;: float(influential_count),
+            &quot;p_value&quot;: None,
+            &quot;message&quot;: f&quot;{influential_count} observations exceed Cook&#39;s D threshold ({cooks_thresh:.4f}).&quot;
+        })
+
+        # VIF
+        vif_map = {}
+        if len(feature_cols) &gt;= 2:
+            X_vif = sm.add_constant(X_raw, has_constant=&quot;add&quot;)
+            for idx, fname in enumerate(feature_cols):
+                vv = float(variance_inflation_factor(X_vif, idx + 1))
+                vif_map[fname] = vv
+                if vv &gt; 10.0:
+                    assumption_checks.append({
+                        &quot;check&quot;: f&quot;vif_{fname}&quot;,
+                        &quot;status&quot;: &quot;failed&quot;,
+                        &quot;statistic&quot;: round(vv, 4),
+                        &quot;p_value&quot;: None,
+                        &quot;message&quot;: f&quot;Severe multicollinearity on &#39;{fname}&#39;: VIF={vv:.2f}&quot;
+                    })
+
+        if bp_status == &quot;failed&quot;:
+            hc3_ci = hc3_fit.conf_int()
+            recommended_alternative = {
+                &quot;method&quot;: &quot;ols_hc3_robust_se&quot;,
+                &quot;reason&quot;: &quot;Breusch-Pagan test detected heteroscedasticity (p &lt; 0.05); HC3 heteroscedasticity-robust standard errors computed.&quot;,
+                &quot;result&quot;: {
+                    &quot;coefficients&quot;: [
+                        {
+                            &quot;name&quot;: pname,
+                            &quot;estimate&quot;: float(hc3_fit.params[idx]),
+                            &quot;hc3_std_err&quot;: float(hc3_fit.bse[idx]),
+                            &quot;hc3_p_value&quot;: float(hc3_fit.pvalues[idx]),
+                            &quot;ci_lower&quot;: float(hc3_ci[idx, 0]),
+                            &quot;ci_upper&quot;: float(hc3_ci[idx, 1]),
+                        }
+                        for idx, pname in enumerate(param_names)
+                    ]
+                }
+            }
+
+        primary = {
+            &quot;model_type&quot;: &quot;ols&quot;,
+            &quot;n&quot;: n,
+            &quot;r_squared&quot;: float(fit.rsquared),
+            &quot;adj_r_squared&quot;: float(fit.rsquared_adj),
+            &quot;aic&quot;: float(fit.aic),
+            &quot;bic&quot;: float(fit.bic),
+            &quot;f_statistic&quot;: float(fit.fvalue) if fit.fvalue is not None else None,
+            &quot;f_pvalue&quot;: float(fit.f_pvalue) if fit.f_pvalue is not None else None,
+            &quot;residual_std_err&quot;: float(math.sqrt(fit.mse_resid)),
+            &quot;coefficients&quot;: coefs,
+            &quot;vif&quot;: vif_map,
+            &quot;influential_count&quot;: influential_count,
+        }
+    elif model_type == &quot;huber_robust&quot;:
+        fit = sm.RLM(y, X, M=sm.robust.norms.HuberT()).fit()
+        fitted = np.asarray(fit.fittedvalues, dtype=np.float64)
+        resid = np.asarray(fit.resid, dtype=np.float64)
+        ci_arr = fit.conf_int()
+        coefs = [
+            {
+                &quot;name&quot;: pname,
+                &quot;estimate&quot;: float(fit.params[idx]),
+                &quot;std_err&quot;: float(fit.bse[idx]),
+                &quot;p_value&quot;: float(fit.pvalues[idx]),
+                &quot;ci_lower&quot;: float(ci_arr[idx, 0]),
+                &quot;ci_upper&quot;: float(ci_arr[idx, 1]),
+            }
+            for idx, pname in enumerate(param_names)
+        ]
+        primary = {&quot;model_type&quot;: &quot;huber_robust&quot;, &quot;n&quot;: n, &quot;scale&quot;: float(fit.scale), &quot;coefficients&quot;: coefs}
+    else:
+        fam_map = {
+            &quot;glm_gaussian&quot;: sm.families.Gaussian(),
+            &quot;glm_binomial&quot;: sm.families.Binomial(),
+            &quot;glm_poisson&quot;: sm.families.Poisson(),
+            &quot;glm_gamma&quot;: sm.families.Gamma(),
+        }
+        fam = fam_map.get(model_type, sm.families.Gaussian())
+        fit = sm.GLM(y, X, family=fam).fit()
+        fitted = np.asarray(fit.fittedvalues, dtype=np.float64)
+        resid = np.asarray(fit.resid_deviance, dtype=np.float64)
+        ci_arr = fit.conf_int()
+        coefs = [
+            {
+                &quot;name&quot;: pname,
+                &quot;estimate&quot;: float(fit.params[idx]),
+                &quot;std_err&quot;: float(fit.bse[idx]),
+                &quot;p_value&quot;: float(fit.pvalues[idx]),
+                &quot;ci_lower&quot;: float(ci_arr[idx, 0]),
+                &quot;ci_upper&quot;: float(ci_arr[idx, 1]),
+            }
+            for idx, pname in enumerate(param_names)
+        ]
+        primary = {
+            &quot;model_type&quot;: model_type,
+            &quot;n&quot;: n,
+            &quot;deviance&quot;: float(fit.deviance),
+            &quot;aic&quot;: float(fit.aic),
+            &quot;coefficients&quot;: coefs,
+        }
+
+    sorted_r = np.sort(resid)
+    probs = (np.arange(1, len(sorted_r) + 1) - 0.5) / float(len(sorted_r))
+    theo_q = stats.norm.ppf(probs)
+
+    diagnostic_plots = [
+        {
+            &quot;plot_type&quot;: &quot;residual_vs_fitted&quot;,
+            &quot;title&quot;: f&quot;Residuals vs Fitted ({target_col})&quot;,
+            &quot;series&quot;: [{&quot;name&quot;: &quot;residuals&quot;, &quot;points&quot;: _downsample_pairs(fitted, resid, max_pts)}],
+        },
+        {
+            &quot;plot_type&quot;: &quot;qq_plot&quot;,
+            &quot;title&quot;: &quot;Residual Normal Q-Q Plot&quot;,
+            &quot;series&quot;: [{&quot;name&quot;: &quot;residuals&quot;, &quot;points&quot;: _downsample_pairs(theo_q, sorted_r, max_pts)}],
+        },
+        {
+            &quot;plot_type&quot;: &quot;ci_forest&quot;,
+            &quot;title&quot;: &quot;Model Coefficients &amp; 95% CI&quot;,
+            &quot;series&quot;: [
+                {&quot;name&quot;: c[&quot;name&quot;], &quot;estimate&quot;: c[&quot;estimate&quot;], &quot;lower&quot;: c[&quot;ci_lower&quot;], &quot;upper&quot;: c[&quot;ci_upper&quot;]}
+                for c in primary[&quot;coefficients&quot;]
+            ],
+        },
+    ]
+
+    return {
+        &quot;primary_result&quot;: primary,
+        &quot;assumption_checks&quot;: assumption_checks,
+        &quot;recommended_alternative&quot;: recommended_alternative,
+        &quot;diagnostic_plots&quot;: diagnostic_plots,
+        &quot;learned_field_traits&quot;: [],
+        &quot;group_sizes&quot;: {},
+    }
+&quot;#;</code></pre></section></div></main></body></html>

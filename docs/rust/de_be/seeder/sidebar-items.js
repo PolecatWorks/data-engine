@@ -1,1 +1,1 @@
-window.SIDEBAR_ITEMS = {"enum":["SeederError"],"fn":["seed_validation_suite","write_parquet_batch"],"struct":["DeterministicRng","GroundTruthManifest","PlantedTrapSpec"]};
+window.SIDEBAR_ITEMS = {"enum":["SeederError"],"fn":["pearson_r","sample_mean_and_var","seed_statistical_chaos_traps","seed_validation_suite","seed_validation_suite_with_options","write_parquet_batch"],"struct":["DeterministicRng","GroundTruthManifest","PlantedTrapSpec"]};

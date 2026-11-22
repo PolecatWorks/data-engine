@@ -1,0 +1,101 @@
+<!DOCTYPE html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1.0"><meta name="generator" content="rustdoc"><meta name="description" content="API documentation for the Rust `BUILTIN_STAT_POWER_CODE` constant in crate `de_be`."><title>BUILTIN_STAT_POWER_CODE in de_be::analytics::scripts - Rust</title><script>if(window.location.protocol!=="file:")document.head.insertAdjacentHTML("beforeend","SourceSerif4-Regular-6b053e98.ttf.woff2,FiraSans-Italic-81dc35de.woff2,FiraSans-Regular-0fe48ade.woff2,FiraSans-MediumItalic-ccf7e434.woff2,FiraSans-Medium-e1aa3f0a.woff2,SourceCodePro-Regular-8badfe75.ttf.woff2,SourceCodePro-Semibold-aa29a496.ttf.woff2".split(",").map(f=>`<link rel="preload" as="font" type="font/woff2"href="../../../static.files/${f}">`).join(""))</script><link rel="stylesheet" href="../../../static.files/normalize-9960930a.css"><link rel="stylesheet" href="../../../static.files/rustdoc-203241e4.css"><meta name="rustdoc-vars" data-root-path="../../../" data-static-root-path="../../../static.files/" data-current-crate="de_be" data-themes="" data-resource-suffix="" data-rustdoc-version="1.100.0 (0ef1bc386 2026-11-09)" data-channel="1.100.0" data-search-js="search-b167f383.js" data-stringdex-js="stringdex-b5109af9.js" data-settings-js="settings-170eb4bf.js" ><script src="../../../static.files/storage-41dd4d93.js"></script><script defer src="sidebar-items.js"></script><script defer src="../../../static.files/main-1814ead3.js"></script><noscript><link rel="stylesheet" href="../../../static.files/noscript-9f56287d.css"></noscript><link rel="alternate icon" type="image/png" href="../../../static.files/favicon-32x32-eab170b8.png"><link rel="icon" type="image/svg+xml" href="../../../static.files/favicon-044be391.svg"></head><body class="rustdoc constant"><a class="skip-main-content" href="#main-content">Skip to main content</a><!--[if lte IE 11]><div class="warning">This old browser is unsupported and will most likely display funky things.</div><![endif]--><rustdoc-topbar><h2><a href="#">BUILTIN_STAT_POWER_CODE</a></h2></rustdoc-topbar><nav class="sidebar"><div class="sidebar-crate"><h2><a href="../../../de_be/index.html">de_be</a><span class="version">0.1.0</span></h2></div><div class="sidebar-elems"><div id="rustdoc-modnav"><h2><a href="index.html">In de_<wbr>be::<wbr>analytics::<wbr>scripts</a></h2></div></div></nav><div class="sidebar-resizer" title="Drag to resize sidebar"></div><main><div class="width-limiter"><section id="main-content" class="content" tabindex="-1"><div class="main-heading"><div class="rustdoc-breadcrumbs"><a href="../../index.html">de_be</a>::<wbr><a href="../index.html">analytics</a>::<wbr><a href="index.html">scripts</a></div><h1>Constant <span class="constant">BUILTIN_<wbr>STAT_<wbr>POWER_<wbr>CODE</span>&nbsp;<button id="copy-path" title="Copy item path to clipboard">Copy item path</button></h1><rustdoc-toolbar></rustdoc-toolbar><span class="sub-heading"><a class="src" href="../../../src/de_be/analytics/scripts.rs.html#681-781">Source</a> </span></div><pre class="rust item-decl"><code>pub const BUILTIN_STAT_POWER_CODE: &amp;<a class="primitive" href="https://doc.rust-lang.org/1.100.0/std/primitive.str.html">str</a> = r#&quot;
+import math
+import numpy as np
+from statsmodels.stats.power import TTestIndPower, TTestPower, NormalIndPower, FTestAnovaPower
+from statsmodels.stats.proportion import proportion_effectsize
+
+def run(inputs, params):
+    test_type = params.get(&quot;test_type&quot;, &quot;two_sample_mean&quot;)
+    solve_for = params.get(&quot;solve_for&quot;, &quot;sample_size&quot;)
+    alpha = float(params.get(&quot;alpha&quot;, 0.05))
+    target_power = params.get(&quot;power&quot;)
+    effect_size = params.get(&quot;effect_size&quot;)
+    p1 = params.get(&quot;p1&quot;)
+    p2 = params.get(&quot;p2&quot;)
+    n_per_group = params.get(&quot;n_per_group&quot;)
+    ratio = float(params.get(&quot;ratio&quot;, 1.0))
+    num_groups = int(params.get(&quot;num_groups&quot;, 2))
+    alt = params.get(&quot;alternative&quot;, &quot;two-sided&quot;)
+
+    if test_type == &quot;two_sample_proportion&quot;:
+        if effect_size is None and p1 is not None and p2 is not None:
+            effect_size = abs(float(proportion_effectsize(float(p1), float(p2))))
+        solver = NormalIndPower()
+    elif test_type == &quot;paired_mean&quot;:
+        solver = TTestPower()
+    elif test_type == &quot;oneway_anova&quot;:
+        solver = FTestAnovaPower()
+    else:
+        solver = TTestIndPower()
+
+    eff = float(effect_size) if effect_size is not None else None
+    pwr = float(target_power) if target_power is not None else None
+    nobs = float(n_per_group) if n_per_group is not None else None
+
+    if solve_for == &quot;sample_size&quot;:
+        if test_type == &quot;oneway_anova&quot;:
+            solved_n = float(solver.solve_power(effect_size=eff, nobs=None, alpha=alpha, power=pwr, k_groups=num_groups))
+        elif test_type == &quot;paired_mean&quot;:
+            solved_n = float(solver.solve_power(effect_size=eff, nobs=None, alpha=alpha, power=pwr, alternative=alt))
+        else:
+            solved_n = float(solver.solve_power(effect_size=eff, nobs1=None, alpha=alpha, power=pwr, ratio=ratio, alternative=alt))
+        result = {&quot;required_n_per_group&quot;: int(math.ceil(solved_n)), &quot;exact_n&quot;: round(solved_n, 4), &quot;power&quot;: pwr, &quot;effect_size&quot;: eff}
+        curve_eff = eff
+    elif solve_for == &quot;mde&quot;:
+        if test_type == &quot;oneway_anova&quot;:
+            solved_eff = float(solver.solve_power(effect_size=None, nobs=nobs, alpha=alpha, power=pwr, k_groups=num_groups))
+        elif test_type == &quot;paired_mean&quot;:
+            solved_eff = float(solver.solve_power(effect_size=None, nobs=nobs, alpha=alpha, power=pwr, alternative=alt))
+        else:
+            solved_eff = float(solver.solve_power(effect_size=None, nobs1=nobs, alpha=alpha, power=pwr, ratio=ratio, alternative=alt))
+        result = {&quot;mde_effect_size&quot;: round(solved_eff, 6), &quot;n_per_group&quot;: int(nobs), &quot;power&quot;: pwr}
+        curve_eff = solved_eff
+    else:
+        if test_type == &quot;oneway_anova&quot;:
+            solved_pwr = float(solver.solve_power(effect_size=eff, nobs=nobs, alpha=alpha, power=None, k_groups=num_groups))
+        elif test_type == &quot;paired_mean&quot;:
+            solved_pwr = float(solver.solve_power(effect_size=eff, nobs=nobs, alpha=alpha, power=None, alternative=alt))
+        else:
+            solved_pwr = float(solver.solve_power(effect_size=eff, nobs1=nobs, alpha=alpha, power=None, ratio=ratio, alternative=alt))
+        result = {&quot;achieved_power&quot;: round(solved_pwr, 6), &quot;n_per_group&quot;: int(nobs), &quot;effect_size&quot;: eff}
+        curve_eff = eff
+
+    assumption_checks = []
+    check_pwr = result.get(&quot;achieved_power&quot;, pwr if pwr is not None else 0.8)
+    assumption_checks.append({
+        &quot;check&quot;: &quot;statistical_power_adequacy&quot;,
+        &quot;status&quot;: &quot;passed&quot; if check_pwr &gt;= 0.80 else &quot;warning&quot;,
+        &quot;statistic&quot;: round(float(check_pwr), 4),
+        &quot;p_value&quot;: None,
+        &quot;message&quot;: f&quot;Power = {check_pwr:.3f} at alpha={alpha} ({&#39;adequate &gt;= 0.80&#39; if check_pwr &gt;= 0.80 else &#39;underpowered &lt; 0.80&#39;}).&quot;
+    })
+
+    # Power curve points
+    n_grid = [10, 25, 50, 100, 250, 500, 1000]
+    curve_pts = []
+    for ng in n_grid:
+        if test_type == &quot;oneway_anova&quot;:
+            pv = float(solver.solve_power(effect_size=curve_eff, nobs=float(ng), alpha=alpha, power=None, k_groups=num_groups))
+        elif test_type == &quot;paired_mean&quot;:
+            pv = float(solver.solve_power(effect_size=curve_eff, nobs=float(ng), alpha=alpha, power=None, alternative=alt))
+        else:
+            pv = float(solver.solve_power(effect_size=curve_eff, nobs1=float(ng), alpha=alpha, power=None, ratio=ratio, alternative=alt))
+        curve_pts.append([ng, round(pv, 4)])
+
+    result[&quot;test_type&quot;] = test_type
+    result[&quot;solve_for&quot;] = solve_for
+    result[&quot;alpha&quot;] = alpha
+
+    return {
+        &quot;primary_result&quot;: result,
+        &quot;assumption_checks&quot;: assumption_checks,
+        &quot;recommended_alternative&quot;: None,
+        &quot;diagnostic_plots&quot;: [{
+            &quot;plot_type&quot;: &quot;power_curve&quot;,
+            &quot;title&quot;: f&quot;Power Curve ({test_type}, effect_size={round(curve_eff, 4)})&quot;,
+            &quot;series&quot;: [{&quot;name&quot;: &quot;power_vs_n&quot;, &quot;points&quot;: curve_pts}],
+        }],
+        &quot;learned_field_traits&quot;: [],
+        &quot;group_sizes&quot;: {},
+    }
+&quot;#;</code></pre></section></div></main></body></html>

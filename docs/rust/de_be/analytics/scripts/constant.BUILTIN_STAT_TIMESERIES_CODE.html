@@ -1,0 +1,241 @@
+<!DOCTYPE html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1.0"><meta name="generator" content="rustdoc"><meta name="description" content="API documentation for the Rust `BUILTIN_STAT_TIMESERIES_CODE` constant in crate `de_be`."><title>BUILTIN_STAT_TIMESERIES_CODE in de_be::analytics::scripts - Rust</title><script>if(window.location.protocol!=="file:")document.head.insertAdjacentHTML("beforeend","SourceSerif4-Regular-6b053e98.ttf.woff2,FiraSans-Italic-81dc35de.woff2,FiraSans-Regular-0fe48ade.woff2,FiraSans-MediumItalic-ccf7e434.woff2,FiraSans-Medium-e1aa3f0a.woff2,SourceCodePro-Regular-8badfe75.ttf.woff2,SourceCodePro-Semibold-aa29a496.ttf.woff2".split(",").map(f=>`<link rel="preload" as="font" type="font/woff2"href="../../../static.files/${f}">`).join(""))</script><link rel="stylesheet" href="../../../static.files/normalize-9960930a.css"><link rel="stylesheet" href="../../../static.files/rustdoc-203241e4.css"><meta name="rustdoc-vars" data-root-path="../../../" data-static-root-path="../../../static.files/" data-current-crate="de_be" data-themes="" data-resource-suffix="" data-rustdoc-version="1.100.0 (0ef1bc386 2026-11-09)" data-channel="1.100.0" data-search-js="search-b167f383.js" data-stringdex-js="stringdex-b5109af9.js" data-settings-js="settings-170eb4bf.js" ><script src="../../../static.files/storage-41dd4d93.js"></script><script defer src="sidebar-items.js"></script><script defer src="../../../static.files/main-1814ead3.js"></script><noscript><link rel="stylesheet" href="../../../static.files/noscript-9f56287d.css"></noscript><link rel="alternate icon" type="image/png" href="../../../static.files/favicon-32x32-eab170b8.png"><link rel="icon" type="image/svg+xml" href="../../../static.files/favicon-044be391.svg"></head><body class="rustdoc constant"><a class="skip-main-content" href="#main-content">Skip to main content</a><!--[if lte IE 11]><div class="warning">This old browser is unsupported and will most likely display funky things.</div><![endif]--><rustdoc-topbar><h2><a href="#">BUILTIN_STAT_TIMESERIES_CODE</a></h2></rustdoc-topbar><nav class="sidebar"><div class="sidebar-crate"><h2><a href="../../../de_be/index.html">de_be</a><span class="version">0.1.0</span></h2></div><div class="sidebar-elems"><div id="rustdoc-modnav"><h2><a href="index.html">In de_<wbr>be::<wbr>analytics::<wbr>scripts</a></h2></div></div></nav><div class="sidebar-resizer" title="Drag to resize sidebar"></div><main><div class="width-limiter"><section id="main-content" class="content" tabindex="-1"><div class="main-heading"><div class="rustdoc-breadcrumbs"><a href="../../index.html">de_be</a>::<wbr><a href="../index.html">analytics</a>::<wbr><a href="index.html">scripts</a></div><h1>Constant <span class="constant">BUILTIN_<wbr>STAT_<wbr>TIMESERIES_<wbr>CODE</span>&nbsp;<button id="copy-path" title="Copy item path to clipboard">Copy item path</button></h1><rustdoc-toolbar></rustdoc-toolbar><span class="sub-heading"><a class="src" href="../../../src/de_be/analytics/scripts.rs.html#1162-1402">Source</a> </span></div><pre class="rust item-decl"><code>pub const BUILTIN_STAT_TIMESERIES_CODE: &amp;<a class="primitive" href="https://doc.rust-lang.org/1.100.0/std/primitive.str.html">str</a> = r#&quot;
+import math
+import numpy as np
+from scipy import stats
+from statsmodels.tsa.seasonal import STL
+from statsmodels.tsa.stattools import adfuller, kpss, acf, pacf
+from statsmodels.stats.diagnostic import acorr_ljungbox
+from statsmodels.tsa.holtwinters import ExponentialSmoothing
+from statsmodels.tsa.arima.model import ARIMA
+
+def _downsample_1d(vals, max_pts):
+    n = len(vals)
+    if n &lt;= max_pts:
+        return [round(float(v), 6) for v in vals]
+    idx = np.linspace(0, n - 1, max_pts, dtype=int)
+    return [round(float(vals[i]), 6) for i in idx]
+
+def _time_sort_key(t):
+    if isinstance(t, (int, float)):
+        return (0, float(t), &quot;&quot;)
+    return (1, 0.0, str(t))
+
+def run(inputs, params):
+    tbl = inputs[&quot;data&quot;]
+    time_col = params[&quot;time_col&quot;]
+    value_col = params[&quot;value_col&quot;]
+    compare_col = params.get(&quot;compare_col&quot;)
+    period = params.get(&quot;period&quot;)
+    forecast_horizon = params.get(&quot;forecast_horizon&quot;)
+    model_name = params.get(&quot;model&quot;, &quot;ets&quot;)
+    anomaly_z = float(params.get(&quot;anomaly_z_threshold&quot;, 3.0))
+    dataset_name = params.get(&quot;dataset_name&quot;, &quot;dataset&quot;)
+    max_pts = int(params.get(&quot;max_plot_points&quot;, 1000))
+
+    times = tbl.column(time_col).to_pylist()
+    raw_vals = tbl.column(value_col).to_pylist()
+    pairs = [(t, float(v)) for t, v in zip(times, raw_vals) if t is not None and v is not None]
+    pairs.sort(key=lambda kv: _time_sort_key(kv[0]))
+    y = np.asarray([kv[1] for kv in pairs], dtype=np.float64)
+    n = len(y)
+
+    assumption_checks = []
+    recommended_alternative = None
+    diagnostic_plots = []
+    learned_field_traits = []
+
+    # ADF &amp; KPSS stationarity tests
+    adf_res = adfuller(y, autolag=&quot;AIC&quot;)
+    adf_stat, adf_p = float(adf_res[0]), float(adf_res[1])
+    kpss_stat, kpss_p, _, _ = kpss(y, regression=&quot;c&quot;, nlags=&quot;auto&quot;)
+    kpss_stat, kpss_p = float(kpss_stat), float(kpss_p)
+
+    is_stationary = bool(adf_p &lt; 0.05 and kpss_p &gt;= 0.05)
+    assumption_checks.append({
+        &quot;check&quot;: &quot;stationarity_adf_kpss&quot;,
+        &quot;status&quot;: &quot;passed&quot; if is_stationary else &quot;failed&quot;,
+        &quot;statistic&quot;: round(adf_stat, 6),
+        &quot;p_value&quot;: round(adf_p, 6),
+        &quot;message&quot;: f&quot;ADF p={adf_p:.4g}, KPSS p={kpss_p:.4g} ({&#39;stationary&#39; if is_stationary else &#39;non-stationary: difference before correlating&#39;}).&quot;
+    })
+
+    # STL Decomposition
+    stl_out = None
+    anomalies = []
+    if period is not None and int(period) &gt;= 2 and n &gt;= int(period) * 2:
+        p_int = int(period)
+        stl_res = STL(y, period=p_int, robust=True).fit()
+        trend = np.asarray(stl_res.trend, dtype=np.float64)
+        seasonal = np.asarray(stl_res.seasonal, dtype=np.float64)
+        resid = np.asarray(stl_res.resid, dtype=np.float64)
+
+        var_resid = float(np.var(resid))
+        var_sr = float(np.var(seasonal + resid))
+        seasonal_strength = max(0.0, 1.0 - var_resid / var_sr) if var_sr &gt; 0.0 else 0.0
+
+        med_r = float(np.median(resid))
+        mad_r = float(np.median(np.abs(resid - med_r)))
+        if mad_r &gt; 0.0:
+            mz = 0.6745 * (resid - med_r) / mad_r
+            for i, z_val in enumerate(mz):
+                if abs(float(z_val)) &gt; anomaly_z:
+                    anomalies.append({&quot;index&quot;: i, &quot;time&quot;: str(pairs[i][0]), &quot;value&quot;: float(y[i]), &quot;z_score&quot;: round(float(z_val), 3)})
+
+        stl_out = {
+            &quot;period&quot;: p_int,
+            &quot;seasonal_strength&quot;: round(seasonal_strength, 6),
+            &quot;anomaly_count&quot;: len(anomalies),
+            &quot;anomalies&quot;: anomalies[:50],
+        }
+        diagnostic_plots.append({
+            &quot;plot_type&quot;: &quot;stl_decomposition&quot;,
+            &quot;title&quot;: f&quot;STL Decomposition ({value_col}, period={p_int})&quot;,
+            &quot;series&quot;: [
+                {&quot;name&quot;: &quot;observed&quot;, &quot;values&quot;: _downsample_1d(y, max_pts)},
+                {&quot;name&quot;: &quot;trend&quot;, &quot;values&quot;: _downsample_1d(trend, max_pts)},
+                {&quot;name&quot;: &quot;seasonal&quot;, &quot;values&quot;: _downsample_1d(seasonal, max_pts)},
+                {&quot;name&quot;: &quot;remainder&quot;, &quot;values&quot;: _downsample_1d(resid, max_pts)},
+            ]
+        })
+
+    # ACF &amp; PACF
+    nlags = min(20, max(2, n // 4))
+    acf_vals = [round(float(v), 6) for v in acf(y, nlags=nlags, fft=True)]
+    pacf_vals = [round(float(v), 6) for v in pacf(y, nlags=min(nlags, max(2, n // 2 - 2)))]
+    bartlett_band = round(1.96 / math.sqrt(float(n)), 6) if n &gt; 0 else 0.0
+    diagnostic_plots.append({
+        &quot;plot_type&quot;: &quot;acf_pacf&quot;,
+        &quot;title&quot;: f&quot;ACF &amp; PACF ({value_col})&quot;,
+        &quot;series&quot;: [
+            {&quot;name&quot;: &quot;acf&quot;, &quot;values&quot;: acf_vals},
+            {&quot;name&quot;: &quot;pacf&quot;, &quot;values&quot;: pacf_vals},
+            {&quot;name&quot;: &quot;confidence_band&quot;, &quot;value&quot;: bartlett_band},
+        ]
+    })
+
+    # Ljung-Box on first differences
+    dy = np.diff(y)
+    lb_df = acorr_ljungbox(dy, lags=[min(10, max(1, len(dy) // 5))], return_df=True)
+    lb_p = float(lb_df[&quot;lb_pvalue&quot;].iloc[-1])
+
+    # Cross-series spurious correlation check
+    cross_corr = None
+    if compare_col:
+        raw_c = tbl.column(compare_col).to_pylist()
+        c_pairs = [(t, float(v1), float(v2)) for t, v1, v2 in zip(times, raw_vals, raw_c) if t is not None and v1 is not None and v2 is not None]
+        c_pairs.sort(key=lambda kv: _time_sort_key(kv[0]))
+        s1 = np.asarray([kv[1] for kv in c_pairs], dtype=np.float64)
+        s2 = np.asarray([kv[2] for kv in c_pairs], dtype=np.float64)
+        level_r, level_p = stats.pearsonr(s1, s2)
+        diff_r, diff_p = stats.pearsonr(np.diff(s1), np.diff(s2))
+        adf2_p = float(adfuller(s2, autolag=&quot;AIC&quot;)[1])
+        spurious = bool((adf_p &gt;= 0.05 or adf2_p &gt;= 0.05) and abs(float(level_r)) &gt; 0.5 and abs(float(diff_r)) &lt; 0.25)
+        cross_corr = {
+            &quot;compare_col&quot;: compare_col,
+            &quot;level_pearson_r&quot;: round(float(level_r), 6),
+            &quot;level_p_value&quot;: float(level_p),
+            &quot;first_diff_pearson_r&quot;: round(float(diff_r), 6),
+            &quot;first_diff_p_value&quot;: float(diff_p),
+            &quot;compare_adf_p_value&quot;: round(adf2_p, 6),
+            &quot;spurious_nonstationary_correlation&quot;: spurious,
+        }
+        if spurious:
+            assumption_checks.append({
+                &quot;check&quot;: &quot;spurious_nonstationary_correlation&quot;,
+                &quot;status&quot;: &quot;failed&quot;,
+                &quot;statistic&quot;: round(float(level_r), 6),
+                &quot;p_value&quot;: float(diff_p),
+                &quot;message&quot;: f&quot;Spurious level correlation detected (level r={level_r:.3f}, first-differenced r={diff_r:.3f}, p={diff_p:.4g}).&quot;
+            })
+            recommended_alternative = {
+                &quot;method&quot;: &quot;first_differenced_correlation&quot;,
+                &quot;reason&quot;: &quot;Non-stationary series detected by ADF/KPSS; use first-differenced correlation instead of level correlation.&quot;,
+                &quot;result&quot;: {
+                    &quot;first_diff_pearson_r&quot;: round(float(diff_r), 6),
+                    &quot;first_diff_p_value&quot;: float(diff_p),
+                }
+            }
+
+    # Optional ETS / ARIMA forecast
+    forecast_out = None
+    if forecast_horizon is not None and int(forecast_horizon) &gt; 0:
+        h = int(forecast_horizon)
+        if model_name == &quot;arima&quot;:
+            fit = ARIMA(y, order=(1, 1 if not is_stationary else 0, 1)).fit()
+            fc = fit.get_forecast(steps=h)
+            mean_fc = np.asarray(fc.predicted_mean, dtype=np.float64)
+            ci95 = np.asarray(fc.conf_int(alpha=0.05), dtype=np.float64)
+            ci80 = np.asarray(fc.conf_int(alpha=0.20), dtype=np.float64)
+            forecast_out = {
+                &quot;model&quot;: &quot;arima&quot;,
+                &quot;horizon&quot;: h,
+                &quot;mean&quot;: [round(float(v), 6) for v in mean_fc],
+                &quot;lower_80&quot;: [round(float(v), 6) for v in ci80[:, 0]],
+                &quot;upper_80&quot;: [round(float(v), 6) for v in ci80[:, 1]],
+                &quot;lower_95&quot;: [round(float(v), 6) for v in ci95[:, 0]],
+                &quot;upper_95&quot;: [round(float(v), 6) for v in ci95[:, 1]],
+            }
+        else:
+            seasonal_arg = &quot;add&quot; if (period is not None and int(period) &gt;= 2 and n &gt;= int(period) * 2) else None
+            fit = ExponentialSmoothing(
+                y,
+                trend=&quot;add&quot;,
+                seasonal=seasonal_arg,
+                seasonal_periods=int(period) if seasonal_arg else None,
+            ).fit()
+            mean_fc = np.asarray(fit.forecast(h), dtype=np.float64)
+            resid_sd = float(np.std(fit.resid, ddof=1)) if len(fit.resid) &gt; 1 else 0.0
+            steps = np.arange(1, h + 1, dtype=np.float64)
+            se_h = resid_sd * np.sqrt(steps)
+            forecast_out = {
+                &quot;model&quot;: &quot;ets&quot;,
+                &quot;horizon&quot;: h,
+                &quot;mean&quot;: [round(float(v), 6) for v in mean_fc],
+                &quot;lower_80&quot;: [round(float(m - 1.2816 * s), 6) for m, s in zip(mean_fc, se_h)],
+                &quot;upper_80&quot;: [round(float(m + 1.2816 * s), 6) for m, s in zip(mean_fc, se_h)],
+                &quot;lower_95&quot;: [round(float(m - 1.96 * s), 6) for m, s in zip(mean_fc, se_h)],
+                &quot;upper_95&quot;: [round(float(m + 1.96 * s), 6) for m, s in zip(mean_fc, se_h)],
+            }
+        diagnostic_plots.append({
+            &quot;plot_type&quot;: &quot;forecast_interval&quot;,
+            &quot;title&quot;: f&quot;{model_name.upper()} Forecast ({value_col}, h={h})&quot;,
+            &quot;series&quot;: [forecast_out],
+        })
+
+    learned_field_traits.append({
+        &quot;field_canonical_id&quot;: f&quot;{dataset_name}.{value_col}&quot;,
+        &quot;distribution_family&quot;: &quot;stationary_series&quot; if is_stationary else &quot;non_stationary_series&quot;,
+        &quot;is_heavy_tailed&quot;: False,
+        &quot;skewness&quot;: None,
+        &quot;kurtosis&quot;: None,
+        &quot;seasonality_period&quot;: str(period) if (stl_out and stl_out[&quot;seasonal_strength&quot;] &gt; 0.3) else None,
+        &quot;recommended_test_family&quot;: &quot;first_differenced_ts&quot; if not is_stationary else &quot;stationary_ts&quot;,
+        &quot;known_confounders&quot;: [],
+        &quot;epistemic_status&quot;: &quot;empirically_tested&quot;,
+        &quot;confidence&quot;: 0.90,
+    })
+
+    return {
+        &quot;primary_result&quot;: {
+            &quot;n&quot;: n,
+            &quot;stationarity&quot;: {
+                &quot;adf_statistic&quot;: round(adf_stat, 6),
+                &quot;adf_p_value&quot;: round(adf_p, 6),
+                &quot;kpss_statistic&quot;: round(kpss_stat, 6),
+                &quot;kpss_p_value&quot;: round(kpss_p, 6),
+                &quot;is_stationary&quot;: is_stationary,
+            },
+            &quot;ljung_box_diff_p_value&quot;: round(lb_p, 6),
+            &quot;stl&quot;: stl_out,
+            &quot;acf&quot;: acf_vals,
+            &quot;pacf&quot;: pacf_vals,
+            &quot;cross_series_correlation&quot;: cross_corr,
+            &quot;forecast&quot;: forecast_out,
+        },
+        &quot;assumption_checks&quot;: assumption_checks,
+        &quot;recommended_alternative&quot;: recommended_alternative,
+        &quot;diagnostic_plots&quot;: diagnostic_plots,
+        &quot;learned_field_traits&quot;: learned_field_traits,
+        &quot;group_sizes&quot;: {},
+    }
+&quot;#;</code></pre></section></div></main></body></html>
