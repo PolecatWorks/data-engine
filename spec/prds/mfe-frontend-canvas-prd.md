@@ -4,7 +4,7 @@
 This PRD defines the requirements, architecture, and component specifications for the **Data-Engine Frontend Container (`de-fe-container`)**. Built with **Angular**, **Angular Material**, **Tailwind CSS**, and **`@angular-architects/native-federation`**, `de-fe-container` operates in three modes:
 1. **Standalone Developer & Steward Application (`:4200`)**: Full two-pane studio for managing data sources, datasets, field profiles, join hypotheses, sandboxed algorithms, and provenance graphs.
 2. **Federated Portal Remote inside [`Mfe-shell`](https://github.com/PolecatWorks/Mfe-shell) (`./routes`)**: Mounts seamlessly under `/home/data-engine` via `remoteEntry.json` (`:3003` locally, `/mfe/data-engine/remoteEntry.json` in Kubernetes with `SERVE_ROOT=/mfe/data-engine`) sharing `@polecatworks/mfe-shared`.
-3. **Live Bidirectional Shared Canvas MFE on the RHS of [`Angry-agent`](https://github.com/PolecatWorks/Angry-agent)**: Exposes self-describing, live-patchable form and workspace wrappers (`./DataAssetFormWrapper`, `./JoinHypothesisReviewWrapper`, `./AlgorithmSandboxWrapper`, `./ProvenanceLineageWrapper`) that allow a human user and the chat LLM to simultaneously inspect, click, edit, and verify the exact same live form in real time.
+3. **Live Bidirectional Shared Canvas MFE on the RHS of [`Angry-agent`](https://github.com/PolecatWorks/Angry-agent)**: Exposes self-describing, live-patchable form, data visualization, and semantic topology wrappers (`./DataAssetFormWrapper`, `./JoinHypothesisReviewWrapper`, `./AlgorithmSandboxWrapper`, `./ProvenanceLineageWrapper`, `./StatisticalDiagnosticsWrapper`, `./DataVisualExplorerWrapper`, `./SemanticTopologyWrapper`) that allow a human user and the chat LLM to simultaneously inspect, click, edit, visualize, and verify the exact same live workspace in real time.
 
 ### Zero-Rewrite Kubernetes Hosting & Runtime Configuration Resolution
 - **MFE Hosting Prefix (`/mfe/data-engine`)**: In Kubernetes, `de-fe-container` is deployed via the `nginx-view` chart with `SERVE_ROOT=/mfe/data-engine`, exposing its federated assets and `config.json` under `/mfe/data-engine/*` without Istio URI path rewrites.
@@ -33,6 +33,9 @@ flowchart TB
         JoinCard["./JoinHypothesisReviewWrapper\nEmpirical Join Proof & HITL Review Card"]
         AlgoEditor["./AlgorithmSandboxWrapper\nLive SQL / Python Sandbox Editor & Preview"]
         ProvViewer["./ProvenanceLineageWrapper\nInteractive Provenance & Lineage DAG"]
+        StatDiag["./StatisticalDiagnosticsWrapper\nAssumption Scorecard & Stat Diagnostic Plots"]
+        DataViz["./DataVisualExplorerWrapper\nInteractive Vega-Lite / ECharts Data Explorer"]
+        TopoViz["./SemanticTopologyWrapper\n3-Layer Semantic & Structural ER/Anatomy Graph"]
     end
 
     DE_BE["de-be-container (:8080)\nREST API & MCP Server (/api/data-engine/v1)"]
@@ -42,6 +45,9 @@ flowchart TB
     Angry -->|"MfeRenderer mounts on RHS of Chat"| JoinCard
     Angry -->|"MfeRenderer mounts on RHS of Chat"| AlgoEditor
     Angry -->|"MfeRenderer mounts on RHS of Chat"| ProvViewer
+    Angry -->|"MfeRenderer mounts on RHS of Chat"| StatDiag
+    Angry -->|"MfeRenderer mounts on RHS of Chat"| DataViz
+    Angry -->|"MfeRenderer mounts on RHS of Chat"| TopoViz
 
     Shell --- SharedLib
     Angry --- SharedLib
@@ -137,22 +143,24 @@ export interface MfeCanvasController<T = any> {
 
 ## Core Capability 2: Exposed Federated MFE Wrappers (`federation.config.js`)
 
-`de-fe-container/federation.config.js` exposes six entry points under remote name `data-engine`:
+`de-fe-container/federation.config.js` exposes eight entry points under remote name `data-engine`:
 
 | Exposed Module | Component | Purpose on the RHS of Chat / Studio |
 | :--- | :--- | :--- |
-| `./routes` | `remoteRoutes` | Full Master-Detail Angular routes (`/sources`, `/datasets/:id`, `/joins/:id`, `/algorithms/:id`, `/provenance/:id`) for standalone or `Mfe-shell` navigation. |
+| `./routes` | `remoteRoutes` | Full Master-Detail Angular routes (`/sources`, `/datasets/:id`, `/joins/:id`, `/algorithms/:id`, `/provenance/:id`, `/explore`, `/topology`) for standalone or `Mfe-shell` navigation. |
 | `./DataAssetFormWrapper` | `DataAssetFormComponent` | Interactive form for inspecting and editing a `Dataset` (grain, format, source) and its table of `DatasetField`s (semantic label, description, unit, sensitivity tag, statistical profile sparklines, and verification state). Users can click any row to focus it in chat, add custom calculated fields, or ask the AI to auto-document fields. |
 | `./JoinHypothesisReviewWrapper` | `JoinHypothesisReviewComponent` | Human-in-the-loop stewardship card displaying a candidate `JOINABLE_WITH` relationship, its statistical inclusion ratios, `1:1`/`1:N` cardinality badge, sample matched rows vs. unmatched orphan values, optional `WHERE` filter invariant input, and **`[Approve & Verify]`** / **`[Reject (Forbidden Join)]`** buttons. |
 | `./AlgorithmSandboxWrapper` | `AlgorithmSandboxComponent` | Interactive SQL / Python code editor with input dataset bindings, `[Dry-Run Validate (100 rows)]`, `[Execute in Sandbox]`, live execution telemetry, and output data table preview. Both the user and the chat LLM can edit the code and parameters live. |
 | `./ProvenanceLineageWrapper` | `ProvenanceLineageComponent` | Interactive lineage explorer rendering the Mermaid DAG (`GET /api/v1/provenance/:id/mermaid`), epistemic trust badge (`Verified` vs. `AI-Inferred`), dataset snapshot hashes, and clickable node inspection. |
 | `./StatisticalDiagnosticsWrapper` | `StatisticalDiagnosticsComponent` | Interactive statistical diagnostic canvas rendering the `StatisticalResultEnvelope` ([08. Statistical Analytics Engine PRD](./statistical-analytics-engine-prd.md)): assumption check scorecards (`passed`/`warning`/`failed`), primary vs. non-parametric fallback comparison, diagnostic charts (Q-Q, residual vs. fitted, distributions, CI forest bars, STL/ACF/forecast intervals), and 1-click **`[Verify Statistical Trait]`** stewardship actions. |
+| `./DataVisualExplorerWrapper` | `DataVisualExplorerComponent` | Interactive declarative data visualization studio & RHS canvas rendering `DataVisualSpec` payloads via **Vega-Lite v5** or **Apache ECharts** ([09. Data Visualizations & Semantic Relationship Topology PRD](./data-visuals-and-semantic-topology-prd.md)): schema-driven chart recommendations, encoding shelf, cross-filtering/brushing, profile reference overlays, epistemic trust badge, and "point-and-ask" selection sync. |
+| `./SemanticTopologyWrapper` | `SemanticTopologyComponent` | Interactive multi-layer relationship & structural anatomy canvas powered by **Cytoscape.js + ELK** ([09. Data Visualizations & Semantic Relationship Topology PRD](./data-visuals-and-semantic-topology-prd.md)): toggles across **3-Layer Semantic-to-Physical Swimlanes** (Business Concepts/Metrics $\rightarrow$ Datasets $\rightarrow$ Fields), **Structural ER & Join Cardinality Map** (including crimson `FORBIDDEN_JOIN`, amber `drifted`, orange `fan_out_warning`, and `CONFOUNDED_BY` overlays), **Zoomed-In Field-to-Field Join & Nested Schema Anatomy**, and **Column-Level Lineage Overlay**. |
 
 ---
 
 ## Core Capability 3: Standalone & `Mfe-shell` Studio Layout (`/home/data-engine`)
 
 Following the UI standards established in `agent-as-data`:
-1. **Viewport Isolation & Independent Scrolling**: The outer layout is locked to `100%` height (`overflow: hidden`) with independently scrolling left-hand entity lists and right-hand detail editors.
-2. **Nested Master-Detail Deep Linking**: Selecting a dataset (`/datasets/:id`), join hypothesis (`/joins/:id`), algorithm (`/algorithms/:id`), or provenance run (`/provenance/:id`) synchronizes with the Angular Router for bookmarkable deep links.
-3. **Embedded RHS Canvas Switcher**: Includes a built-in MFE switcher bar allowing developers to preview and test switching between all five canvas wrappers in isolation.
+1. **Viewport Isolation & Independent Scrolling**: The outer layout is locked to `100%` height (`overflow: hidden`) with independently scrolling left-hand entity lists and right-hand detail editors, chart explorers, and interactive graph canvases.
+2. **Nested Master-Detail Deep Linking**: Selecting a dataset (`/datasets/:id`), join hypothesis (`/joins/:id`), algorithm (`/algorithms/:id`), provenance run (`/provenance/:id`), saved data visual (`/explore/:id`), or topology focus node (`/topology?focus=:canonical_id`) synchronizes with the Angular Router for bookmarkable deep links.
+3. **Embedded RHS Canvas Switcher**: Includes a built-in MFE switcher bar allowing developers to preview and test switching between all seven canvas wrappers in isolation.

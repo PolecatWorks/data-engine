@@ -17,7 +17,7 @@ flowchart TB
     subgraph FrontendTier["1. Micro-Frontend & Shared Canvas Tier (Native Federation)"]
         Shell["Mfe-shell (:4200)\nHost Router + @polecatworks/mfe-shared\n(SharedContextService & SharedCanvasService)"]
         AngryUI["Angry-agent UI (:3001)\nLHS Chat + RHS Live Shared Canvas (MfeRenderer)"]
-        DE_FE["data-engine MFE (:3003)\n• ./DataAssetFormWrapper\n• ./JoinHypothesisReviewWrapper\n• ./AlgorithmSandboxWrapper\n• ./ProvenanceLineageWrapper"]
+        DE_FE["data-engine MFE (:3003)\n• ./DataAssetFormWrapper\n• ./JoinHypothesisReviewWrapper\n• ./AlgorithmSandboxWrapper\n• ./ProvenanceLineageWrapper\n• ./StatisticalDiagnosticsWrapper\n• ./DataVisualExplorerWrapper\n• ./SemanticTopologyWrapper"]
         MFE1["mfe1 (:3000)\n• ./DataShowWrapper\n• ./MermaidShowWrapper\n• ./PersonalDataFormWrapper"]
         AAD_FE["agent-as-data UI\nDeclarative Agent & Knowledge Studio"]
     end
@@ -28,8 +28,8 @@ flowchart TB
     end
 
     subgraph DataAndGraphTier["3. Semantic Graph, Compute & Sandbox Tier (MCP JSON-RPC 2.0)"]
-        GR_BE["GraphRAG-RS (/api/graphrag/v1/mcp)\n(Layer 2 Concepts, Layer 1 Datasets, Layer 0 Fields,\ngraphrag_find_join_path & ontology_sync_dataset)"]
-        DE_BE["data-engine BE (/api/data-engine/v1/mcp)\n(S3/Parquet/SQL/NoSQL Connectors, MinHash Profiler,\nDataFusion AST/Join Prober, Arrow /dev/shm Python Sandbox,\nW3C PROV / OpenLineage Provenance Ledger)"]
+        GR_BE["GraphRAG-RS (/api/graphrag/v1/mcp)\n(Layer 2 Concepts, Layer 1 Datasets, Layer 0 Fields,\ngraphrag_find_join_path, ontology_sync_dataset & ontology/subgraph)"]
+        DE_BE["data-engine BE (/api/data-engine/v1/mcp)\n(S3/Parquet/SQL/NoSQL Connectors, MinHash Profiler,\nDataFusion AST/Join Prober, Arrow /dev/shm Python Sandbox,\nVisuals & Topology Engine, W3C PROV Provenance Ledger)"]
     end
 
     Shell --> AngryUI & DE_FE & MFE1 & AAD_FE
@@ -38,7 +38,7 @@ flowchart TB
     AAD_FE <--> AAD_BE
     AngryBE <-->|"MCP JSON-RPC 2.0"| GR_BE & DE_BE & AAD_BE
     AAD_BE <-->|"MCP JSON-RPC 2.0"| GR_BE & DE_BE
-    DE_BE -->|"ontology_sync_dataset"| GR_BE
+    DE_BE <-->|"ontology_sync_dataset & GET /ontology/subgraph"| GR_BE
 ```
 
 ---
@@ -86,7 +86,30 @@ sequenceDiagram
     DE-->>Agent: Validation passed (output Arrow schema verified)
     Agent->>DE: MCP: algorithm_execute (DataFusion -> /dev/shm Arrow -> Sandboxed Python -> ProvenanceRun)
     DE-->>Agent: Output rows + provenance_run_id + provenance_signature_sha256 + trust_summary
-    Agent->>Canvas: Mount chart (mfe1/./DataShowWrapper) + Lineage DAG (data-engine/./ProvenanceLineageWrapper)
+    Agent->>Canvas: Mount chart (./DataVisualExplorerWrapper) + Lineage DAG (./ProvenanceLineageWrapper)
+```
+
+### Flow 3: Semantic & Structural Topology Inspection to Interactive Data Visualization
+```mermaid
+sequenceDiagram
+    autonumber
+    actor User as Analyst / Steward
+    participant Canvas as Angry-agent + RHS Canvas
+    participant Agent as SemanticSteward / DataAnalyst Agent
+    participant DE as data-engine (/api/data-engine/v1)
+    participant GR as Graphrag (/api/graphrag/v1)
+
+    User->>Canvas: "Show how Net Revenue connects to our tables, highlight traps, and plot daily revenue"
+    Canvas->>Agent: POST /api/chat
+    Agent->>DE: MCP: topology_graph(focus_node_id="net_revenue", hops=2, include_semantics=true)
+    DE->>GR: GET /ontology/subgraph?focus_node_id=net_revenue&hops=2
+    GR-->>DE: Layer 2 Concepts/Metrics/Communities + Confounders
+    DE-->>Agent: Fused SemanticTopologyGraph (with FORBIDDEN_JOIN, drift & fan-out annotations)
+    Agent->>Canvas: Mount ./SemanticTopologyWrapper (3-layer view + highlighted join path)
+    User->>Canvas: Clicks join edge -> inspects Field Anatomy Venn/Sankey overlap -> clicks [Explore Joined Data]
+    Agent->>DE: MCP: visual_render_spec(validated SQL + Vega-Lite DataVisualSpec)
+    DE-->>Agent: Bounded aggregated series + ProvenanceRun + trust_summary
+    Agent->>Canvas: Mount ./DataVisualExplorerWrapper (live-patchable Vega-Lite / ECharts visual)
 ```
 
 ---
@@ -98,3 +121,6 @@ sequenceDiagram
 - [REST BREAD & MCP Service PRD](./data-engine-mcp-api-prd.md)
 - [Angular Native Federation MFE & Bidirectional Shared Canvas PRD](./mfe-frontend-canvas-prd.md)
 - [GitHub CI, Multi-Arch Docker Publish & Ephemeral Integration Testing PRD](./ci-cd-container-integration-prd.md)
+- [Validation Datasets, Benchmark Harness & Chaos Seeding PRD](./validation-datasets-and-benchmark-prd.md)
+- [Statistical Analytics Engine, Diagnostics & Statistical Traps PRD](./statistical-analytics-engine-prd.md)
+- [Data Visualizations & Semantic Relationship Topology PRD](./data-visuals-and-semantic-topology-prd.md)

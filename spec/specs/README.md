@@ -35,3 +35,9 @@ This directory contains the detailed technical specifications and Test-Driven De
 * [11. Curated Phase 1 Statistical Toolbelt, `StatisticalResultEnvelope`, MCP Tools & Epistemic Trait Sync](./11-curated-statistical-toolbelt-and-mcp-spec.md) - `draft`
 * [12. Statistical Chaos Traps (`STAT-TRAP-01..04`) & `./StatisticalDiagnosticsWrapper` Canvas Remote](./12-statistical-chaos-traps-and-diagnostics-canvas-spec.md) - `draft`
 
+## Increment 7: Data Visualizations & Semantic Relationship Topology
+
+* [13. Data Visuals Engine, Schema-Driven Chart Recommender, Bounded Query Materialization & MCP Tools (`src/visuals/`)](./13-data-visuals-engine-recommender-and-mcp-spec.md) - `draft`
+* [14. Semantic & Structural Topology Graph Engine, Field Anatomy API & MCP Tools (`src/topology/`)](./14-semantic-topology-graph-and-field-anatomy-spec.md) - `draft`
+* [15. `./DataVisualExplorerWrapper` & `./SemanticTopologyWrapper` Angular Native Federation Canvas Remotes (`de-fe-container`)](./15-data-visual-explorer-and-semantic-topology-canvas-spec.md) - `draft`
+
