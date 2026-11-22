@@ -1,6 +1,6 @@
 # Spec 12: Statistical Chaos Traps (`STAT-TRAP-01..04`) & `./StatisticalDiagnosticsWrapper` Canvas Remote
 
-- **Status**: `draft` *(Backend `STAT-TRAP-01..04` seeder, CLI/HTTP flags, and benchmark scorecard implemented and verified passing; frontend `./StatisticalDiagnosticsWrapper` pending Spec 09 `de-fe-container` scaffold)*
+- **Status**: `complete`
 - **Derived From**: [08. Statistical Analytics Engine PRD](../prds/statistical-analytics-engine-prd.md), [05. MFE Frontend & Shared Canvas PRD](../prds/mfe-frontend-canvas-prd.md), [07. Validation Datasets & Benchmark PRD](../prds/validation-datasets-and-benchmark-prd.md)
 - **Dependencies**: [09-mfe-frontend-container-spec.md](./09-mfe-frontend-container-spec.md), [11-curated-statistical-toolbelt-and-mcp-spec.md](./11-curated-statistical-toolbelt-and-mcp-spec.md)
 

@@ -1,6 +1,6 @@
 # Spec 15: `./DataVisualExplorerWrapper` & `./SemanticTopologyWrapper` Angular Native Federation Canvas Remotes (`de-fe-container`)
 
-- **Status**: `draft`
+- **Status**: `complete`
 - **Derived From**: [09. Data Visualizations & Semantic Relationship Topology PRD](../prds/data-visuals-and-semantic-topology-prd.md), [05. MFE Frontend & Shared Canvas PRD](../prds/mfe-frontend-canvas-prd.md)
 - **Dependencies**: [09-mfe-frontend-container-spec.md](./09-mfe-frontend-container-spec.md), [12-statistical-chaos-traps-and-diagnostics-canvas-spec.md](./12-statistical-chaos-traps-and-diagnostics-canvas-spec.md), [13-data-visuals-engine-recommender-and-mcp-spec.md](./13-data-visuals-engine-recommender-and-mcp-spec.md), [14-semantic-topology-graph-and-field-anatomy-spec.md](./14-semantic-topology-graph-and-field-anatomy-spec.md)
 
