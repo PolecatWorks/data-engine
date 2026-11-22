@@ -846,13 +846,13 @@ pub async fn build_topology_graph(
 
     // 3. Fuse GraphRAG Layer 2 semantic ontology overlay (with graceful degradation)
     let mut graphrag_overlay_degraded = false;
-    if include_semantics && config.enable_graphrag_overlay {
+    if include_semantics {
         if let Some(ref base_url) = config.graphrag_base_url {
             let ds_names: Vec<String> = scoped_datasets
                 .iter()
                 .map(|d| d.canonical_id.clone())
                 .collect();
-            match fetch_graphrag_subgraph(base_url, &ds_names, hops, include_forbidden).await {
+            match fetch_graphrag_subgraph(base_url.as_str(), &ds_names, hops, include_forbidden).await {
                 Ok(gr) => {
                     // Build lookup from GraphRAG field node id -> canonical "ds.field" id
                     let mut gr_id_remap: HashMap<String, String> = HashMap::new();
@@ -1607,8 +1607,9 @@ mod tests {
             .unwrap();
 
         let cfg = VisualsConfig {
-            enable_graphrag_overlay: true,
-            graphrag_base_url: Some(format!("http://{}/api/graphrag/v1", addr)),
+            graphrag_base_url: Some(
+                url::Url::parse(&format!("http://{}/api/graphrag/v1", addr)).unwrap(),
+            ),
             ..Default::default()
         };
         let graph = build_topology_graph(
@@ -1648,8 +1649,9 @@ mod tests {
             .unwrap();
 
         let cfg = VisualsConfig {
-            enable_graphrag_overlay: true,
-            graphrag_base_url: Some("http://127.0.0.1:1/api/graphrag/v1".to_string()),
+            graphrag_base_url: Some(
+                url::Url::parse("http://127.0.0.1:1/api/graphrag/v1").unwrap(),
+            ),
             ..Default::default()
         };
         let graph = build_topology_graph(

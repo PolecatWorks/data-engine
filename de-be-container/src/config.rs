@@ -1,5 +1,5 @@
 use std::net::IpAddr;
-use std::path::Path;
+use std::path::{Path, PathBuf};
 
 use figment::Figment;
 use figment::providers::{Env, Format, Yaml};
@@ -13,10 +13,6 @@ pub enum ServiceConfigError {
     EmptyName,
     #[error("service.version must not be empty")]
     EmptyVersion,
-    #[error("service.host must not be empty")]
-    EmptyHost,
-    #[error("service.host must be a valid IP address (got '{0}')")]
-    InvalidHost(String),
     #[error("service.port must be greater than 0")]
     InvalidPort,
     #[error("service.log_level must not be empty")]
@@ -100,18 +96,13 @@ pub enum ConfigError {
     Mcp(#[from] crate::mcp::McpError),
 }
 
-fn default_api_prefix() -> String {
-    "/api/data-engine/v1".to_string()
-}
-
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
 pub struct ServiceConfig {
     pub name: String,
     pub version: String,
-    pub host: String,
+    pub host: IpAddr,
     pub port: u16,
     pub log_level: String,
-    #[serde(default = "default_api_prefix")]
     pub api_prefix: String,
 }
 
@@ -122,12 +113,6 @@ impl ServiceConfig {
         }
         if self.version.trim().is_empty() {
             return Err(ServiceConfigError::EmptyVersion);
-        }
-        if self.host.trim().is_empty() {
-            return Err(ServiceConfigError::EmptyHost);
-        }
-        if self.host.parse::<IpAddr>().is_err() {
-            return Err(ServiceConfigError::InvalidHost(self.host.clone()));
         }
         if self.port == 0 {
             return Err(ServiceConfigError::InvalidPort);
@@ -215,35 +200,15 @@ pub enum SandboxBackend {
     Namespace,
 }
 
-fn default_sandbox_backend() -> SandboxBackend {
-    SandboxBackend::Process
-}
-
-fn default_max_sandbox_rows() -> usize {
-    100_000
-}
-
-fn default_max_plot_points() -> usize {
-    1000
-}
-
-fn default_shm_dir() -> String {
-    "/dev/shm".to_string()
-}
-
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
 pub struct SandboxConfig {
-    #[serde(default = "default_sandbox_backend")]
     pub backend: SandboxBackend,
-    pub python_binary: String,
+    pub python_binary: PathBuf,
     pub timeout_ms: u64,
     pub max_code_bytes: usize,
-    #[serde(default = "default_max_sandbox_rows")]
     pub max_sandbox_rows: usize,
-    #[serde(default = "default_max_plot_points")]
     pub max_plot_points: usize,
-    #[serde(default = "default_shm_dir")]
-    pub shm_dir: String,
+    pub shm_dir: PathBuf,
     pub allowed_modules: Vec<String>,
 }
 
@@ -252,7 +217,7 @@ impl SandboxConfig {
         if self.backend == SandboxBackend::Namespace {
             return Err(SandboxConfigError::UnsupportedBackendNamespace);
         }
-        if self.python_binary.trim().is_empty() {
+        if self.python_binary.as_os_str().to_string_lossy().trim().is_empty() {
             return Err(SandboxConfigError::EmptyPythonBinary);
         }
         if self.timeout_ms == 0 {
@@ -267,7 +232,7 @@ impl SandboxConfig {
         if self.max_plot_points == 0 {
             return Err(SandboxConfigError::ZeroMaxPlotPoints);
         }
-        if self.shm_dir.trim().is_empty() {
+        if self.shm_dir.as_os_str().to_string_lossy().trim().is_empty() {
             return Err(SandboxConfigError::EmptyShmDir);
         }
         Ok(())
@@ -281,9 +246,7 @@ pub struct AppConfig {
     pub compute: ComputeConfig,
     pub seeder: SeederConfig,
     pub sandbox: SandboxConfig,
-    #[serde(default)]
     pub visuals: crate::visuals::config::VisualsConfig,
-    #[serde(default)]
     pub mcp: crate::mcp::McpConfig,
 }
 
@@ -324,6 +287,7 @@ service:
   host: "127.0.0.1"
   port: 8080
   log_level: "info"
+  api_prefix: "/api/data-engine/v1"
 profiler:
   max_sample_rows: 50000
   top_k_values: 10
@@ -352,6 +316,16 @@ sandbox:
     - "scipy"
     - "statsmodels"
     - "pyarrow"
+visuals:
+  max_chart_points: 5000
+  max_topology_nodes: 250
+  max_topology_edges: 500
+  default_ego_hops: 2
+  graphrag_base_url: null
+mcp:
+  enabled: true
+  server_name: "data-engine-mcp"
+  instructions: "PolecatWorks Data-Engine Model Context Protocol Server for deterministic statistical analytics, data visualization recommendation and rendering, and semantic topology exploration."
 "#
     }
 
@@ -362,15 +336,33 @@ sandbox:
 
         let cfg = AppConfig::load(tmp.path()).expect("valid config should load");
         assert_eq!(cfg.service.name, "data-engine-be");
+        assert_eq!(cfg.service.host, "127.0.0.1".parse::<IpAddr>().unwrap());
         assert_eq!(cfg.service.port, 8080);
         assert_eq!(cfg.service.api_prefix, "/api/data-engine/v1");
         assert_eq!(cfg.profiler.minhash_num_hashes, 64);
         assert_eq!(cfg.compute.join_inclusion_threshold, 0.80);
         assert_eq!(cfg.seeder.default_seed, 42);
-        assert!(!cfg.sandbox.python_binary.is_empty());
+        assert!(!cfg.sandbox.python_binary.as_os_str().is_empty());
         assert_eq!(cfg.sandbox.backend, SandboxBackend::Process);
         assert_eq!(cfg.sandbox.max_sandbox_rows, 100_000);
         assert_eq!(cfg.sandbox.max_plot_points, 1000);
+        assert_eq!(cfg.sandbox.shm_dir, PathBuf::from("/dev/shm"));
+        assert!(cfg.visuals.graphrag_base_url.is_none());
+    }
+
+    #[test]
+    fn test_missing_required_sections_fail_fast_without_serde_defaults() {
+        let incomplete_yaml = r#"
+service:
+  name: "data-engine-be"
+  version: "0.1.0"
+  host: "127.0.0.1"
+  port: 8080
+  log_level: "info"
+"#;
+        let mut tmp = NamedTempFile::new().expect("create temp yaml");
+        tmp.write_all(incomplete_yaml.as_bytes()).expect("write yaml");
+        assert!(matches!(AppConfig::load(tmp.path()), Err(ConfigError::Load(_))));
     }
 
     #[test]
@@ -480,7 +472,7 @@ sandbox:
         ));
 
         cfg.sandbox.max_plot_points = 500;
-        cfg.sandbox.shm_dir = "   ".to_string();
+        cfg.sandbox.shm_dir = PathBuf::from("   ");
         assert!(matches!(
             cfg.validate(),
             Err(ConfigError::Sandbox(SandboxConfigError::EmptyShmDir))
@@ -551,33 +543,16 @@ sandbox:
     }
 
     #[test]
-    fn test_service_config_rejects_invalid_host() {
+    fn test_service_config_rejects_invalid_host_at_parse_boundary() {
+        let bad_host_yaml = sample_yaml().replace(r#"host: "127.0.0.1""#, r#"host: "not-a-valid-ip""#);
         let mut tmp = NamedTempFile::new().expect("create temp yaml");
-        tmp.write_all(sample_yaml().as_bytes()).expect("write yaml");
-        let mut cfg = AppConfig::load(tmp.path()).expect("load base");
+        tmp.write_all(bad_host_yaml.as_bytes()).expect("write yaml");
+        assert!(matches!(AppConfig::load(tmp.path()), Err(ConfigError::Load(_))));
 
-        cfg.service.host = "0.0.0.0".to_string();
-        assert!(cfg.validate().is_ok());
-
-        cfg.service.host = "::1".to_string();
-        assert!(cfg.validate().is_ok());
-
-        cfg.service.host = "   ".to_string();
-        assert!(matches!(
-            cfg.validate(),
-            Err(ConfigError::Service(ServiceConfigError::EmptyHost))
-        ));
-
-        cfg.service.host = "not-a-valid-ip".to_string();
-        assert!(matches!(
-            cfg.validate(),
-            Err(ConfigError::Service(ServiceConfigError::InvalidHost(ref h))) if h == "not-a-valid-ip"
-        ));
-
-        cfg.service.host = "999.999.999.999".to_string();
-        assert!(matches!(
-            cfg.validate(),
-            Err(ConfigError::Service(ServiceConfigError::InvalidHost(_)))
-        ));
+        let ipv6_yaml = sample_yaml().replace(r#"host: "127.0.0.1""#, r#"host: "::1""#);
+        let mut tmp6 = NamedTempFile::new().expect("create temp yaml");
+        tmp6.write_all(ipv6_yaml.as_bytes()).expect("write yaml");
+        let cfg6 = AppConfig::load(tmp6.path()).expect("valid ipv6 host should load");
+        assert_eq!(cfg6.service.host, "::1".parse::<IpAddr>().unwrap());
     }
 }

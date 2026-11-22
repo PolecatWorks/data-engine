@@ -941,9 +941,9 @@ mod tests {
             max_sandbox_rows: 100_000,
             max_plot_points: 1000,
             shm_dir: if std::path::Path::new("/dev/shm").exists() {
-                "/dev/shm".to_string()
+                std::path::PathBuf::from("/dev/shm")
             } else {
-                std::env::temp_dir().to_string_lossy().to_string()
+                std::env::temp_dir()
             },
             allowed_modules: vec![
                 "math".to_string(),
