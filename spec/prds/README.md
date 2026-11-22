@@ -17,6 +17,7 @@ flowchart TD
     B & C & E & F --> G["07. Validation Datasets, Benchmark Harness & Chaos Seeding PRD\n(validation-datasets-and-benchmark-prd.md)"]
     C & D & E & G --> H["08. Statistical Analytics Engine, Diagnostics & Traps PRD\n(statistical-analytics-engine-prd.md)"]
     B & C & D & E & H --> I["09. Data Visualizations & Semantic Relationship Topology PRD\n(data-visuals-and-semantic-topology-prd.md)"]
+    A & D & E --> J["10. Keycloak Service Claims & Auth Addendum PRD\n(keycloak-claims-and-service-auth-prd.md)"]
 ```
 
 ---
@@ -35,7 +36,7 @@ flowchart TD
 | **[07. Validation Datasets, Benchmark Harness & Chaos Seeding](./validation-datasets-and-benchmark-prd.md)** | Curated external datasets (**BIRD-SQL**, **Valentine**, **Olist E-Commerce**, **NYC TLC**, **TPC-H via `tpchgen-rs`**), the built-in 3-wave **Enterprise Chaos & Drift Seeder (`de-be seed-validation-suite`)**, 5 canonical semantic traps (`TRAP-01`..`TRAP-05`), and the quantitative ablation evaluation matrix. |
 | **[08. Statistical Analytics Engine, Diagnostics & Statistical Traps](./statistical-analytics-engine-prd.md)** | Pinned scientific Python venv (`numpy`, `scipy`, `statsmodels`, `pyarrow`) behind `SandboxExecutor`, zero-copy Arrow IPC `/dev/shm` staging with fail-fast row limits & opt-in seeded sampling, typed `stat_*` MCP tools & REST analytics endpoints, universal `StatisticalResultEnvelope` with assumption checks & diagnostic plot specs, `./StatisticalDiagnosticsWrapper` canvas view, persistent field statistical traits, and `STAT-TRAP-01`..`STAT-TRAP-04` benchmarks. |
 | **[09. Data Visualizations & Semantic Relationship Topology](./data-visuals-and-semantic-topology-prd.md)** | Declarative **Vega-Lite / Apache ECharts** interactive data visuals (`./DataVisualExplorerWrapper`, schema-driven chart recommendations, bounded DataFusion aggregation, cross-filtering, saved visuals BREAD) and **Cytoscape.js + ELK** 3-layer semantic/structural relationship visuals (`./SemanticTopologyWrapper`: Business Concepts/Metrics $\rightarrow$ Datasets $\rightarrow$ Fields, ER/join cardinalities, `FORBIDDEN_JOIN` red edges, drift & confounder overlays, and zoomed-in Field-to-Field Join & Structural Anatomy). |
-| **[10. Keycloak Client Claims, Sandbox Security & Service Auth](./keycloak-claims-and-service-auth-prd.md)** | OIDC Bearer token verification via Keycloak JWKS (`data-engine-api`), domain-specific client roles (`profile:run`, `query:run`, `compute:execute`, `dataset:admin`), `data_engine` quota/catalog claims, M2M service accounts (`angry-agent-sa`, `agent-as-data-sa`, `data-engine-sa`), and zero dev/fake auth policy. |
+| **[10. Keycloak Service Claims & Auth Addendum](./keycloak-claims-and-service-auth-prd.md)** | Service-local client (`data-engine-api`), service account (`data-engine-sa`), roles (`profile:run`, `query:run`, `compute:execute`, `dataset:admin`), and `data_engine` quota/catalog claims referencing the canonical ecosystem auth pattern in `Mfe-shell`. |
 
 ---
 

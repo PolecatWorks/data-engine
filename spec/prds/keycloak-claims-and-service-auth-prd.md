@@ -1,64 +1,28 @@
-# Data-Engine Keycloak Client Claims, Sandbox Security & Service Auth PRD
+# Data-Engine Keycloak Service Claims & Auth Addendum PRD
 
-## Overview
-This PRD defines the authentication, claims structure, and machine-to-machine service account policies for **Data-Engine (`de-be-container`, `de-fe-container`)**.
-
-It specifies:
-1. **Resource Server Protection (`data-engine-api`)**: Validating OIDC Bearer tokens via Keycloak JWKS for all REST, Arrow Flight, and MCP endpoints.
-2. **Domain-Specific Client Claims**: Scoping permissions for data profiling, DataFusion SQL execution, Python sandbox execution, and lakehouse storage access under `resource_access['data-engine-api']`.
-3. **M2M Integration with Ecosystem Agents**: Authenticating requests from orchestrators (`angry-agent-sa`, `agent-as-data-sa`) via dedicated service accounts.
-4. **Zero Dev/Fake Auth Policy**: Enforcing genuine claims verification in all environments.
+> [!IMPORTANT]
+> **Canonical Auth Pattern**: Global Keycloak OIDC (`shell-ui` + `ecosystem-audiences`), `@polecatworks/mfe-shared` token distribution, zero-fake-auth rules, dynamic JWKS verification, and M2M `client_credentials` mechanics are defined canonically in [**Mfe-shell: Ecosystem Keycloak OIDC, Claims Distribution & Service Auth Pattern PRD**](https://github.com/PolecatWorks/Mfe-shell/blob/main/spec/prds/keycloak-oidc-and-claims-distribution-prd.md).
+>
+> This document specifies only the **Data-Engine (`de-be-container`, `de-fe-container`)** service-local contract.
 
 ---
 
-## Architecture Topology
+## 1. Keycloak Client & Roles (`data-engine-api`)
 
-```mermaid
-flowchart TD
-    subgraph Ingress ["API & MCP Callers"]
-        DE_UI["Data-Engine MFE (de-fe-container)"]
-        AA_SA["Angry-Agent SA (angry-agent-sa)"]
-        AAD_SA["Agent-As-Data SA (agent-as-data-sa)"]
-    end
-
-    subgraph Security ["Data-Engine Auth Middleware"]
-        JWKS_Verifier["Keycloak JWKS Verifier"]
-        ClaimsExtractor["Claims & Role Gatekeeper"]
-    end
-
-    subgraph Core ["Data-Engine Core Capabilities"]
-        Profiler["Data Profiler & Join Prober"]
-        DataFusion["DataFusion Engine & Query Validator"]
-        PySandbox["Python Analytics Sandbox"]
-        Provenance["Provenance Ledger"]
-    end
-
-    Ingress -->|Bearer Token (aud: data-engine-api)| JWKS_Verifier
-    JWKS_Verifier --> ClaimsExtractor
-    ClaimsExtractor -->|"role: compute:execute"| PySandbox
-    ClaimsExtractor -->|"role: query:run"| DataFusion
-    ClaimsExtractor -->|"role: profile:run"| Profiler
-    ClaimsExtractor --> Provenance
-```
+- **Client ID (`aud`)**: `data-engine-api`
+- **Type**: Bearer-only / Resource Server (declared in `fluxcd-dev/keycloak-crs.yaml`)
+- **Client Roles** (`resource_access["data-engine-api"].roles`):
+  - `profile:run`: Run data profiling and empirical join-key probes.
+  - `query:run`: Execute validated analytical queries against registered datasets.
+  - `compute:execute`: Execute Python code and statistical algorithms in the isolated analytic sandbox.
+  - `dataset:admin`: Register new connectors, modify lakehouse schema catalogs, and grant access.
 
 ---
 
-## Specification Details
+## 2. Service-Specific Token Claims (`data_engine`)
 
-### 1. Keycloak Client Definition (`KeycloakClient: data-engine-api`)
-- **Client ID**: `data-engine-api`
-- **Type**: Bearer-only / Resource Server
-- **Audience**: `aud: ["data-engine-api"]`
-- **Client Roles**:
-  - `profile:run`: Run data profiling and hypothesis join probes.
-  - `query:run`: Execute SQL queries against DataFusion and registered datasets.
-  - `compute:execute`: Execute Python code in the containerized analytic sandbox.
-  - `dataset:admin`: Register new connectors, modify lakehouse schema catalogs, grant access.
-
-### 2. Unique Token Claims for Data-Engine
 ```json
 {
-  "iss": "http://keycloak-keycloakx-http.auth.svc.cluster.local/auth/realms/sw-dev",
   "sub": "4a761e82-2d17-4861-8290-79883bfad211",
   "aud": ["data-engine-api"],
   "resource_access": {
@@ -75,5 +39,10 @@ flowchart TD
 }
 ```
 
-### 3. Service Account Integration (`data-engine-sa`)
-- Confidential client for Data-Engine background workers publishing lineage records to external sinks or writing to shared S3/MinIO buckets.
+---
+
+## 3. Service-Local Integration Notes
+
+- **Backend (`de-be-container`, Rust/Axum)**: Protects all REST (`/api/data-engine/v1/*`) and MCP (`/mcp`) endpoints via the canonical JWKS middleware (`aud` contains `data-engine-api`), enforcing role gates (`profile:run`, `query:run`, `compute:execute`, `dataset:admin`) and `data_engine` quota claims. Accepts end-user tokens from `de-fe-container` and M2M tokens from `angry-agent-sa` / `agent-as-data-sa`.
+- **Frontend (`de-fe-container`)**: Consumes `SharedContextService.getAccessToken()` via `@polecatworks/mfe-shared` per the canonical child MFE pattern.
+- **Outbound M2M (`data-engine-sa`)**: Confidential client for background workers publishing lineage records or writing to shared S3/MinIO buckets.
