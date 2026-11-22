@@ -77,3 +77,9 @@ flowchart TD
 
 ### 3. Service Account Integration (`data-engine-sa`)
 - Confidential client for Data-Engine background workers publishing lineage records to external sinks or writing to shared S3/MinIO buckets.
+
+### 4. Ecosystem Realm Groups (`DataAgentAdmins` & `DataAgentUsers`)
+Data-Engine client roles are mapped to users through centralized Keycloak realm groups defined in `Mfe-shell/fluxcd-dev/keycloak-service-capture.yaml`:
+- **`DataAgentAdmins` (`metadata.name: data-agent-admins`)**: Grants `profile:run`, `query:run`, `compute:execute`, and `dataset:admin`.
+- **`DataAgentUsers` (`metadata.name: data-agent-users`)**: Grants `profile:run`, `query:run`, and `compute:execute`.
+
