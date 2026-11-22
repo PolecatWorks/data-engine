@@ -46,13 +46,15 @@ Topology Graph Dataset Anatomy Mermaid And MCP Tools
     [Documentation]    Verifies GET /topology/graph, /topology/anatomy/dataset/orders, /topology/mermaid, and MCP visual/topology tools.
     [Tags]    topology    mcp    spec14
 
-    ${topo_resp}=    GET    ${BE_BASE_URL}/api/data-engine/v1/topology/graph?lens=semantic_3layer    expected_status=200
+    ${topo_params}=    Create Dictionary    lens=semantic_3layer
+    ${topo_resp}=    GET    url=${BE_BASE_URL}/api/data-engine/v1/topology/graph    params=${topo_params}    expected_status=200
     Should Not Be Empty    ${topo_resp.json()['nodes']}
 
-    ${anat_resp}=    GET    ${BE_BASE_URL}/api/data-engine/v1/topology/anatomy/dataset/orders    expected_status=200
+    ${anat_resp}=    GET    url=${BE_BASE_URL}/api/data-engine/v1/topology/anatomy/dataset/orders    expected_status=200
     Should Be Equal As Strings    ${anat_resp.json()['canonical_id']}    orders
 
-    ${mm_resp}=    GET    ${BE_BASE_URL}/api/data-engine/v1/topology/mermaid?lens=er_join    expected_status=200
+    ${mm_params}=    Create Dictionary    lens=er_join
+    ${mm_resp}=    GET    url=${BE_BASE_URL}/api/data-engine/v1/topology/mermaid    params=${mm_params}    expected_status=200
     Should Be Equal As Strings    ${mm_resp.json()['diagram_kind']}    erDiagram
 
     # Verify MCP tools/list exposes all 4 new visual & topology tools
