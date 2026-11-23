@@ -162,17 +162,17 @@ export class StatisticalDiagnosticsComponent implements CanvasManagedComponent<S
   }
 
   async verifyTrait(trait: StatisticalDiagnosticsState['learned_field_traits'][number]): Promise<void> {
-    trait.epistemic_status = 'verified';
-    this.mountProps.onAction?.('verify_statistical_trait', { field_canonical_id: trait.field_canonical_id });
-    if (this.api) {
-      try {
+    try {
+      if (this.api) {
         await this.api.verifyStatisticalField(trait.field_canonical_id, {
           verified_by: 'steward_user',
           recommended_test_family: trait.recommended_test_family,
         });
-      } catch {
-        // Non-blocking in offline preview
       }
+      trait.epistemic_status = 'verified';
+      this.mountProps.onAction?.('verify_statistical_trait', { field_canonical_id: trait.field_canonical_id });
+    } catch (err) {
+      console.error('[StatisticalDiagnostics] Failed to verify trait:', err);
     }
   }
 }

@@ -672,14 +672,14 @@ export class SemanticTopologyComponent
       verified_by: 'steward_user',
       steward_notes: 'Verified via SemanticTopology Field Anatomy',
     };
-    ja.join.epistemic_status = 'verified';
-    this.mountProps.onAction?.('verify_join', { join_id: ja.join.id, ...payload });
-    if (this.api) {
-      try {
+    try {
+      if (this.api) {
         await this.api.stewardJoin(ja.join.id, payload);
-      } catch {
-        // Non-blocking in offline preview
       }
+      ja.join.epistemic_status = 'verified';
+      this.mountProps.onAction?.('verify_join', { join_id: ja.join.id, ...payload });
+    } catch (err) {
+      console.error('[SemanticTopology] Failed to approve join:', err);
     }
   }
 
@@ -691,15 +691,15 @@ export class SemanticTopologyComponent
       verified_by: 'steward_user',
       steward_notes: 'Rejected as FORBIDDEN_JOIN via SemanticTopology',
     };
-    ja.join.epistemic_status = 'rejected';
-    ja.join.predicate = 'FORBIDDEN_JOIN';
-    this.mountProps.onAction?.('reject_forbidden_join', { join_id: ja.join.id, ...payload });
-    if (this.api) {
-      try {
+    try {
+      if (this.api) {
         await this.api.stewardJoin(ja.join.id, payload);
-      } catch {
-        // Non-blocking in offline preview
       }
+      ja.join.epistemic_status = 'rejected';
+      ja.join.predicate = 'FORBIDDEN_JOIN';
+      this.mountProps.onAction?.('reject_forbidden_join', { join_id: ja.join.id, ...payload });
+    } catch (err) {
+      console.error('[SemanticTopology] Failed to reject join:', err);
     }
   }
 

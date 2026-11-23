@@ -126,6 +126,10 @@ export function defaultDataVisualExplorerState(): DataVisualExplorerState {
         </div>
       </header>
 
+      <div *ngIf="errorMessage" class="error-banner" role="alert" data-testid="visual-error-banner">
+        <strong>Error:</strong> {{ errorMessage }}
+      </div>
+
       <div *ngIf="state.provenance?.sampled" class="sampling-banner" data-testid="sampling-disclosure-banner">
         <strong>Sampling Disclosure:</strong>
         Sampled {{ state.provenance?.rendered_rows | number }} of {{ state.provenance?.population_rows | number }} rows
@@ -213,6 +217,7 @@ export function defaultDataVisualExplorerState(): DataVisualExplorerState {
     .btn { background: #1e293b; color: #e2e8f0; border: 1px solid #334155; border-radius: 6px; padding: 6px 10px; font-size: 12px; cursor: pointer; }
     .btn:hover { background: #334155; }
     .btn-accent { background: #2563eb; border-color: #3b82f6; color: #fff; }
+    .error-banner { padding: 8px 12px; border-radius: 8px; background: rgba(239, 68, 68, 0.14); border: 1px solid rgba(239, 68, 68, 0.45); color: #fecaca; font-size: 12px; }
     .sampling-banner { padding: 8px 12px; border-radius: 8px; background: rgba(245, 158, 11, 0.14); border: 1px solid rgba(245, 158, 11, 0.45); color: #fde68a; font-size: 12px; }
     .rec-strip { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }
     .rec-label { font-size: 12px; color: #94a3b8; }
@@ -243,6 +248,7 @@ export class DataVisualExplorerComponent
   canvasId = 'data-visual-explorer';
   aiAttributions: AiFieldAttribution[] = [];
   selectedSummary: string | null = null;
+  errorMessage: string | null = null;
   renderCount = 0;
 
   private mountProps: MfeMountProps<DataVisualExplorerState> = {};
@@ -464,8 +470,8 @@ export class DataVisualExplorerComponent
     if (this.api) {
       try {
         await this.api.saveVisual(payload);
-      } catch {
-        // Non-blocking when previewed without live backend
+      } catch (err) {
+        console.error('[DataVisualExplorer] Failed to save visual:', err);
       }
     }
   }
@@ -544,7 +550,8 @@ export class DataVisualExplorerComponent
             this.selectDatum(item.datum as Record<string, any>, 0);
           }
         });
-      } catch {
+      } catch (err) {
+        console.error('[DataVisualExplorer] Vega-Lite embed failed:', err);
         host.setAttribute('data-rendered-mode', 'vega_lite_fallback');
       }
     }

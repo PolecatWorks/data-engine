@@ -1,4 +1,5 @@
 import { describe, expect, it, vi, afterEach } from 'vitest';
+import { DataEngineApiService } from '../../services/data-engine-api.service';
 import { mount, defaultStatisticalDiagnosticsState } from './statistical-diagnostics.wrapper';
 
 describe('StatisticalDiagnosticsWrapper (Spec 12)', () => {
@@ -41,12 +42,21 @@ describe('StatisticalDiagnosticsWrapper (Spec 12)', () => {
     expect(host.querySelector('[data-testid="assumption-scorecard"]')?.textContent).toContain('passed');
     expect(host.querySelector('[data-testid="recommended-alternative"]')?.textContent).toContain('mann_whitney_u');
 
-    const verifyBtn = host.querySelector('[data-testid="btn-verify-trait"]') as HTMLButtonElement;
-    verifyBtn.click();
+    const verifySpy = vi
+      .spyOn(DataEngineApiService.prototype, 'verifyStatisticalField')
+      .mockResolvedValue(undefined as never);
+    try {
+      const verifyBtn = host.querySelector('[data-testid="btn-verify-trait"]') as HTMLButtonElement;
+      verifyBtn.click();
 
-    expect(onAction).toHaveBeenCalledWith('verify_statistical_trait', {
-      field_canonical_id: 'sales_orders.order_total_usd',
-    });
-    expect(controller.getState().learned_field_traits[0].epistemic_status).toBe('verified');
+      await vi.waitFor(() =>
+        expect(onAction).toHaveBeenCalledWith('verify_statistical_trait', {
+          field_canonical_id: 'sales_orders.order_total_usd',
+        }),
+      );
+      expect(controller.getState().learned_field_traits[0].epistemic_status).toBe('verified');
+    } finally {
+      verifySpy.mockRestore();
+    }
   });
 });
