@@ -1,0 +1,817 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<robot generator="Robot 7.5 (Python 3.14.10 on linux)" generated="2026-11-23T13:40:12.905816" rpa="false" schemaversion="5">
+<suite id="s1" name="Robot-Tests" source="/tmp/robot-tests">
+<suite id="s1-s1" name="Tests" source="/tmp/robot-tests/tests">
+<suite id="s1-s1-s1" name="Test Be" source="/tmp/robot-tests/tests/test_be.robot">
+<test id="s1-s1-s1-t1" name="Backend Direct Pod Health Check" line="9">
+<kw name="Skip If" owner="BuiltIn">
+<arg>'${BE_POD_IP}' == '${EMPTY}'</arg>
+<arg>BE_POD_IP is empty</arg>
+<doc>Conditionally stops the current test or task and sets its status to SKIP.</doc>
+<status status="PASS" start="2026-11-23T13:40:13.368074" elapsed="0.002509"/>
+</kw>
+<kw name="GET" owner="RequestsLibrary">
+<msg time="2026-11-23T13:40:13.376323" level="DEBUG">Starting new HTTP connection (1): 10.244.7.173:8080</msg>
+<msg time="2026-11-23T13:40:13.443835" level="DEBUG">http://10.244.7.173:8080 "GET /api/v1/health HTTP/1.1" 200 60</msg>
+<msg time="2026-11-23T13:40:13.445191" level="INFO">GET Request : url=http://10.244.7.173:8080/api/v1/health 
+ path_url=/api/v1/health 
+ headers={'User-Agent': 'python-requests/2.34.2', 'Accept-Encoding': 'gzip, deflate, zstd', 'Accept': '*/*', 'Connection': 'keep-alive'} 
+ body=None 
+ </msg>
+<msg time="2026-11-23T13:40:13.445698" level="INFO">GET Response : url=http://10.244.7.173:8080/api/v1/health 
+ status=200, reason=OK 
+ headers={'content-type': 'application/json', 'content-length': '60', 'date': 'Mon, 23 Nov 2026 13:40:13 GMT', 'x-envoy-upstream-service-time': '43', 'server': 'envoy'} 
+ body={"status":"ok","service":"data-engine-be","version":"0.1.0"} 
+ </msg>
+<msg time="2026-11-23T13:40:13.446254" level="INFO">${response} = &lt;Response [200]&gt;</msg>
+<var>${response}</var>
+<arg>http://${BE_POD_IP}:8080/api/v1/health</arg>
+<arg>expected_status=200</arg>
+<doc>Sends a GET request.</doc>
+<status status="PASS" start="2026-11-23T13:40:13.371412" elapsed="0.074982"/>
+</kw>
+<kw name="Log" owner="BuiltIn">
+<msg time="2026-11-23T13:40:13.449117" level="INFO">Health Response: {"status":"ok","service":"data-engine-be","version":"0.1.0"}</msg>
+<arg>Health Response: ${response.content}</arg>
+<doc>Logs the given message with the given level.</doc>
+<status status="PASS" start="2026-11-23T13:40:13.447308" elapsed="0.002055"/>
+</kw>
+<kw name="Should Be Equal As Strings" owner="BuiltIn">
+<msg time="2026-11-23T13:40:13.451596" level="DEBUG">Argument types are:
+&lt;class 'str'&gt;
+&lt;class 'str'&gt;</msg>
+<arg>${response.json()['status']}</arg>
+<arg>ok</arg>
+<doc>Fails if objects are unequal after converting them to strings.</doc>
+<status status="PASS" start="2026-11-23T13:40:13.449914" elapsed="0.001921"/>
+</kw>
+<kw name="Should Be Equal As Strings" owner="BuiltIn">
+<msg time="2026-11-23T13:40:13.453921" level="DEBUG">Argument types are:
+&lt;class 'str'&gt;
+&lt;class 'str'&gt;</msg>
+<arg>${response.json()['service']}</arg>
+<arg>data-engine-be</arg>
+<doc>Fails if objects are unequal after converting them to strings.</doc>
+<status status="PASS" start="2026-11-23T13:40:13.452318" elapsed="0.001832"/>
+</kw>
+<doc>Verify the backend health endpoint responds directly on the pod IP.</doc>
+<status status="PASS" start="2026-11-23T13:40:13.364364" elapsed="0.090196"/>
+</test>
+<test id="s1-s1-s1-t2" name="Backend Service Health Check" line="17">
+<kw name="GET" owner="RequestsLibrary">
+<msg time="2026-11-23T13:40:13.460536" level="DEBUG">Starting new HTTP connection (1): data-engine-be:80</msg>
+<msg time="2026-11-23T13:40:13.588421" level="DEBUG">http://data-engine-be:80 "GET /api/v1/health HTTP/1.1" 200 60</msg>
+<msg time="2026-11-23T13:40:13.590172" level="INFO">GET Request : url=http://data-engine-be/api/v1/health 
+ path_url=/api/v1/health 
+ headers={'User-Agent': 'python-requests/2.34.2', 'Accept-Encoding': 'gzip, deflate, zstd', 'Accept': '*/*', 'Connection': 'keep-alive'} 
+ body=None 
+ </msg>
+<msg time="2026-11-23T13:40:13.590542" level="INFO">GET Response : url=http://data-engine-be/api/v1/health 
+ status=200, reason=OK 
+ headers={'content-type': 'application/json', 'content-length': '60', 'date': 'Mon, 23 Nov 2026 13:40:13 GMT', 'x-envoy-upstream-service-time': '82', 'server': 'envoy'} 
+ body={"status":"ok","service":"data-engine-be","version":"0.1.0"} 
+ </msg>
+<msg time="2026-11-23T13:40:13.591334" level="INFO">${response} = &lt;Response [200]&gt;</msg>
+<var>${response}</var>
+<arg>${BE_BASE_URL}/api/v1/health</arg>
+<arg>expected_status=200</arg>
+<doc>Sends a GET request.</doc>
+<status status="PASS" start="2026-11-23T13:40:13.457861" elapsed="0.133673"/>
+</kw>
+<kw name="Log" owner="BuiltIn">
+<msg time="2026-11-23T13:40:13.595325" level="INFO">Service Health Response: {"status":"ok","service":"data-engine-be","version":"0.1.0"}</msg>
+<arg>Service Health Response: ${response.content}</arg>
+<doc>Logs the given message with the given level.</doc>
+<status status="PASS" start="2026-11-23T13:40:13.592935" elapsed="0.002737"/>
+</kw>
+<kw name="Should Be Equal As Strings" owner="BuiltIn">
+<msg time="2026-11-23T13:40:13.598849" level="DEBUG">Argument types are:
+&lt;class 'str'&gt;
+&lt;class 'str'&gt;</msg>
+<arg>${response.json()['status']}</arg>
+<arg>ok</arg>
+<doc>Fails if objects are unequal after converting them to strings.</doc>
+<status status="PASS" start="2026-11-23T13:40:13.596554" elapsed="0.002558"/>
+</kw>
+<kw name="Should Be Equal As Strings" owner="BuiltIn">
+<msg time="2026-11-23T13:40:13.601293" level="DEBUG">Argument types are:
+&lt;class 'str'&gt;
+&lt;class 'str'&gt;</msg>
+<arg>${response.json()['service']}</arg>
+<arg>data-engine-be</arg>
+<doc>Fails if objects are unequal after converting them to strings.</doc>
+<status status="PASS" start="2026-11-23T13:40:13.599628" elapsed="0.001947"/>
+</kw>
+<doc>Verify the backend health endpoint responds via the ClusterIP service.</doc>
+<status status="PASS" start="2026-11-23T13:40:13.455858" elapsed="0.146233"/>
+</test>
+<test id="s1-s1-s1-t3" name="Backend Configured Prefix Health Check" line="24">
+<kw name="GET" owner="RequestsLibrary">
+<msg time="2026-11-23T13:40:13.608881" level="DEBUG">Starting new HTTP connection (1): data-engine-be:80</msg>
+<msg time="2026-11-23T13:40:13.668959" level="DEBUG">http://data-engine-be:80 "GET /api/data-engine/v1/health HTTP/1.1" 200 60</msg>
+<msg time="2026-11-23T13:40:13.670561" level="INFO">GET Request : url=http://data-engine-be/api/data-engine/v1/health 
+ path_url=/api/data-engine/v1/health 
+ headers={'User-Agent': 'python-requests/2.34.2', 'Accept-Encoding': 'gzip, deflate, zstd', 'Accept': '*/*', 'Connection': 'keep-alive'} 
+ body=None 
+ </msg>
+<msg time="2026-11-23T13:40:13.671256" level="INFO">GET Response : url=http://data-engine-be/api/data-engine/v1/health 
+ status=200, reason=OK 
+ headers={'content-type': 'application/json', 'content-length': '60', 'date': 'Mon, 23 Nov 2026 13:40:13 GMT', 'x-envoy-upstream-service-time': '14', 'server': 'envoy'} 
+ body={"status":"ok","service":"data-engine-be","version":"0.1.0"} 
+ </msg>
+<msg time="2026-11-23T13:40:13.671919" level="INFO">${response} = &lt;Response [200]&gt;</msg>
+<var>${response}</var>
+<arg>${BE_BASE_URL}/api/data-engine/v1/health</arg>
+<arg>expected_status=200</arg>
+<doc>Sends a GET request.</doc>
+<status status="PASS" start="2026-11-23T13:40:13.605727" elapsed="0.066432"/>
+</kw>
+<kw name="Log" owner="BuiltIn">
+<msg time="2026-11-23T13:40:13.674924" level="INFO">Prefix Health Response: {"status":"ok","service":"data-engine-be","version":"0.1.0"}</msg>
+<arg>Prefix Health Response: ${response.content}</arg>
+<doc>Logs the given message with the given level.</doc>
+<status status="PASS" start="2026-11-23T13:40:13.673246" elapsed="0.001893"/>
+</kw>
+<kw name="Should Be Equal As Strings" owner="BuiltIn">
+<msg time="2026-11-23T13:40:13.677353" level="DEBUG">Argument types are:
+&lt;class 'str'&gt;
+&lt;class 'str'&gt;</msg>
+<arg>${response.json()['status']}</arg>
+<arg>ok</arg>
+<doc>Fails if objects are unequal after converting them to strings.</doc>
+<status status="PASS" start="2026-11-23T13:40:13.675682" elapsed="0.001929"/>
+</kw>
+<kw name="Should Be Equal As Strings" owner="BuiltIn">
+<msg time="2026-11-23T13:40:13.679952" level="DEBUG">Argument types are:
+&lt;class 'str'&gt;
+&lt;class 'str'&gt;</msg>
+<arg>${response.json()['service']}</arg>
+<arg>data-engine-be</arg>
+<doc>Fails if objects are unequal after converting them to strings.</doc>
+<status status="PASS" start="2026-11-23T13:40:13.678171" elapsed="0.002142"/>
+</kw>
+<doc>Verify the backend health endpoint responds via the configured api_prefix.</doc>
+<status status="PASS" start="2026-11-23T13:40:13.603521" elapsed="0.077362"/>
+</test>
+<test id="s1-s1-s1-t4" name="Backend Negative: Unknown Prefix Returns 404" line="31">
+<kw name="GET" owner="RequestsLibrary">
+<msg time="2026-11-23T13:40:13.690080" level="DEBUG">Starting new HTTP connection (1): data-engine-be:80</msg>
+<msg time="2026-11-23T13:40:13.774830" level="DEBUG">http://data-engine-be:80 "GET /api/unknown-service/v1/health HTTP/1.1" 404 0</msg>
+<msg time="2026-11-23T13:40:13.776015" level="INFO">GET Request : url=http://data-engine-be/api/unknown-service/v1/health 
+ path_url=/api/unknown-service/v1/health 
+ headers={'User-Agent': 'python-requests/2.34.2', 'Accept-Encoding': 'gzip, deflate, zstd', 'Accept': '*/*', 'Connection': 'keep-alive'} 
+ body=None 
+ </msg>
+<msg time="2026-11-23T13:40:13.776450" level="INFO">GET Response : url=http://data-engine-be/api/unknown-service/v1/health 
+ status=404, reason=Not Found 
+ headers={'content-length': '0', 'date': 'Mon, 23 Nov 2026 13:40:13 GMT', 'x-envoy-upstream-service-time': '43', 'server': 'envoy'} 
+ body=None 
+ </msg>
+<msg time="2026-11-23T13:40:13.777135" level="INFO">${response} = &lt;Response [404]&gt;</msg>
+<var>${response}</var>
+<arg>${BE_BASE_URL}/api/unknown-service/v1/health</arg>
+<arg>expected_status=404</arg>
+<doc>Sends a GET request.</doc>
+<status status="PASS" start="2026-11-23T13:40:13.685908" elapsed="0.091502"/>
+</kw>
+<kw name="Log" owner="BuiltIn">
+<msg time="2026-11-23T13:40:13.781497" level="INFO">Response status: 404</msg>
+<arg>Response status: ${response.status_code}</arg>
+<doc>Logs the given message with the given level.</doc>
+<status status="PASS" start="2026-11-23T13:40:13.778539" elapsed="0.003294"/>
+</kw>
+<doc>Verify requests to non-existent API prefixes return 404.</doc>
+<status status="PASS" start="2026-11-23T13:40:13.682426" elapsed="0.100080"/>
+</test>
+<test id="s1-s1-s1-t5" name="Backend Negative: Missing API Version Returns 404" line="36">
+<kw name="GET" owner="RequestsLibrary">
+<msg time="2026-11-23T13:40:13.791900" level="DEBUG">Starting new HTTP connection (1): data-engine-be:80</msg>
+<msg time="2026-11-23T13:40:13.839557" level="DEBUG">http://data-engine-be:80 "GET /api/data-engine/health HTTP/1.1" 404 0</msg>
+<msg time="2026-11-23T13:40:13.841033" level="INFO">GET Request : url=http://data-engine-be/api/data-engine/health 
+ path_url=/api/data-engine/health 
+ headers={'User-Agent': 'python-requests/2.34.2', 'Accept-Encoding': 'gzip, deflate, zstd', 'Accept': '*/*', 'Connection': 'keep-alive'} 
+ body=None 
+ </msg>
+<msg time="2026-11-23T13:40:13.841377" level="INFO">GET Response : url=http://data-engine-be/api/data-engine/health 
+ status=404, reason=Not Found 
+ headers={'content-length': '0', 'date': 'Mon, 23 Nov 2026 13:40:13 GMT', 'x-envoy-upstream-service-time': '6', 'server': 'envoy'} 
+ body=None 
+ </msg>
+<msg time="2026-11-23T13:40:13.842042" level="INFO">${response} = &lt;Response [404]&gt;</msg>
+<var>${response}</var>
+<arg>${BE_BASE_URL}/api/data-engine/health</arg>
+<arg>expected_status=404</arg>
+<doc>Sends a GET request.</doc>
+<status status="PASS" start="2026-11-23T13:40:13.788292" elapsed="0.053932"/>
+</kw>
+<kw name="Log" owner="BuiltIn">
+<msg time="2026-11-23T13:40:13.846087" level="INFO">Response status: 404</msg>
+<arg>Response status: ${response.status_code}</arg>
+<doc>Logs the given message with the given level.</doc>
+<status status="PASS" start="2026-11-23T13:40:13.843455" elapsed="0.002969"/>
+</kw>
+<doc>Verify requests with missing path segments return 404.</doc>
+<status status="PASS" start="2026-11-23T13:40:13.784162" elapsed="0.062941"/>
+</test>
+<status status="PASS" start="2026-11-23T13:40:13.137377" elapsed="0.714169"/>
+</suite>
+<suite id="s1-s1-s2" name="Test Visuals And Topology" source="/tmp/robot-tests/tests/test_visuals_and_topology.robot">
+<test id="s1-s1-s2-t1" name="Visuals Engine Recommender Query And Saved Visuals BREAD" line="11">
+<kw name="Create Dictionary" owner="BuiltIn">
+<msg time="2026-11-23T13:40:13.973538" level="INFO">${seed_body} = {'output_dir': '/tmp/de-robot-visuals-suite', 'seed': 42, 'row_count': 40}</msg>
+<var>${seed_body}</var>
+<arg>output_dir=${SEED_DIR}</arg>
+<arg>seed=${42}</arg>
+<arg>row_count=${40}</arg>
+<doc>Creates and returns a dictionary based on the given `items`.</doc>
+<status status="PASS" start="2026-11-23T13:40:13.971380" elapsed="0.002278"/>
+</kw>
+<kw name="POST" owner="RequestsLibrary">
+<msg time="2026-11-23T13:40:13.976507" level="DEBUG">Starting new HTTP connection (1): data-engine-be:80</msg>
+<msg time="2026-11-23T13:40:14.003591" level="DEBUG">http://data-engine-be:80 "POST /api/data-engine/v1/datasets/seed HTTP/1.1" 200 2311</msg>
+<msg time="2026-11-23T13:40:14.006497" level="INFO">POST Request : url=http://data-engine-be/api/data-engine/v1/datasets/seed 
+ path_url=/api/data-engine/v1/datasets/seed 
+ headers={'User-Agent': 'python-requests/2.34.2', 'Accept-Encoding': 'gzip, deflate, zstd', 'Accept': '*/*', 'Connection': 'keep-alive', 'Content-Length': '74', 'Content-Type': 'application/json'} 
+ body=b'{"output_dir": "/tmp/de-robot-visuals-suite", "seed": 42, "row_count": 40}' 
+ </msg>
+<msg time="2026-11-23T13:40:14.007057" level="INFO">POST Response : url=http://data-engine-be/api/data-engine/v1/datasets/seed 
+ status=200, reason=OK 
+ headers={'content-type': 'application/json', 'content-length': '2311', 'date': 'Mon, 23 Nov 2026 13:40:13 GMT', 'x-envoy-upstream-service-time': '20', 'server': 'envoy'} 
+ body={"seed":42,"base_row_count":40,"generated_files":["crm_customers.parquet","sales_orders.parquet","order_items.parquet","order_payments.parquet","billing_subscriptions.parquet","marketing_leads.parquet","payment_events_wave1.parquet","payment_events_wave3.parquet"],"true_total_order_revenue_usd":35710.5,"naive_fanout_inflated_revenue_usd":93766.0,"expected_fanout_multiplier":2.63,"wave1_payment_mean_usd":119.5,"wave3_payment_mean_cents":11950.0,"expected_trap_05_anomaly_count":1,"planted_traps":[{"trap_id":"TRAP-01","category":"homonym_chasm","left_dataset":"billing_subscriptions","left_field":"account_id","right_dataset":"marketing_leads","right_field":"account_id","expected_action":"require_steward_verification_then_forbidden_join","description":"Both tables use sequential integer surrogate account_id (1..N) for unrelated entity domains (Billing Tax Accounts vs Ad Marketing Leads)."},{"trap_id":"TRAP-02","category":"cryptic_synonym_fk","left_dataset":"sales_orders","left_field":"cust_ref_key","right_dataset":"crm_customers","right_field":"party_uuid","expected_action":"sync_joinable_with","description":"Zero column-name similarity, but &gt;98% value inclusion ratio and clean N:1 cardinality."},{"trap_id":"TRAP-03","category":"nm_fanout_inflation","left_dataset":"order_items","left_field":"order_id","right_dataset":"order_payments","right_field":"order_id","expected_action":"pre_aggregate_before_join","description":"Joining multi-row order_items to multi-row order_payments on order_id inflates payment revenue by ~2.5x."},{"trap_id":"TRAP-04","category":"temporal_schema_and_unit_drift","left_dataset":"payment_events_wave1","left_field":"amount","right_dataset":"payment_events_wave3","right_field":"amount","expected_action":"mark_drifted_and_require_unit_conversion","description":"Wave 3 renames user_id -&gt; client_id and shifts amount from USD (~120.0) to integer cents (~12000.0, 100x scale shift)."},{"trap_id":"TRAP-05","category":"non_sql_algorithmic_anomaly","left_dataset":"sales_orders","left_field":"order_total_usd","right_dataset":"sales_orders","right_field":"status","expected_action":"execute_sandboxed_python_algorithm_and_promote_aad_skill","description":"Detect outlier orders (z_score &gt; 3.0) and composite churn risk via sandboxed Python algorithm."}],"stat_traps":[]} 
+ </msg>
+<msg time="2026-11-23T13:40:14.008555" level="INFO">${seed_resp} = &lt;Response [200]&gt;</msg>
+<var>${seed_resp}</var>
+<arg>${BE_BASE_URL}/api/data-engine/v1/datasets/seed</arg>
+<arg>json=${seed_body}</arg>
+<arg>expected_status=200</arg>
+<doc>Sends a POST request.</doc>
+<status status="PASS" start="2026-11-23T13:40:13.974118" elapsed="0.034861"/>
+</kw>
+<kw name="Create Dictionary" owner="BuiltIn">
+<msg time="2026-11-23T13:40:14.013729" level="INFO">${prof_body} = {'dataset_name': 'orders', 'parquet_path': '/tmp/de-robot-visuals-suite/sales_orders.parquet'}</msg>
+<var>${prof_body}</var>
+<arg>dataset_name=orders</arg>
+<arg>parquet_path=${SEED_DIR}/sales_orders.parquet</arg>
+<doc>Creates and returns a dictionary based on the given `items`.</doc>
+<status status="PASS" start="2026-11-23T13:40:14.010669" elapsed="0.003207"/>
+</kw>
+<kw name="POST" owner="RequestsLibrary">
+<msg time="2026-11-23T13:40:14.017272" level="DEBUG">Starting new HTTP connection (1): data-engine-be:80</msg>
+<msg time="2026-11-23T13:40:14.030989" level="DEBUG">http://data-engine-be:80 "POST /api/data-engine/v1/datasets/profile HTTP/1.1" 200 6928</msg>
+<msg time="2026-11-23T13:40:14.032271" level="INFO">POST Request : url=http://data-engine-be/api/data-engine/v1/datasets/profile 
+ path_url=/api/data-engine/v1/datasets/profile 
+ headers={'User-Agent': 'python-requests/2.34.2', 'Accept-Encoding': 'gzip, deflate, zstd', 'Accept': '*/*', 'Connection': 'keep-alive', 'Content-Length': '94', 'Content-Type': 'application/json'} 
+ body=b'{"dataset_name": "orders", "parquet_path": "/tmp/de-robot-visuals-suite/sales_orders.parquet"}' 
+ </msg>
+<msg time="2026-11-23T13:40:14.032601" level="INFO">POST Response : url=http://data-engine-be/api/data-engine/v1/datasets/profile 
+ status=200, reason=OK 
+ headers={'content-type': 'application/json', 'content-length': '6928', 'date': 'Mon, 23 Nov 2026 13:40:13 GMT', 'x-envoy-upstream-service-time': '5', 'server': 'envoy'} 
+ body={"dataset_name":"orders","row_count":80,"schema_fingerprint_sha256":"037b85adf55cd8dd09f01eb5238eb63046d0d9e3e4bbe1b7b2a6572604255898","candidate_primary_keys":["order_id"],"epistemic_status":"discovered","drift_findings":[],"fields":[{"field_name":"order_id","arrow_data_type":"Utf8","null_count":0,"null_ratio":0.0,"distinct_count":80,"uniqueness_ratio":1.0,"top_k_values":["ORD-000001","ORD-000002","ORD-000003","ORD-000004","ORD-000005","ORD-000006","ORD-000007","ORD-000008","ORD-000009","ORD-000010"],"dominant_prefix":"ORD","minhash_signature":[17420365504783439168,2841581160015682644,7286319419684141264,4618032998284297958,8503208361360297232,17308437494536026944,10641460365050887773,11139503591861198786,7838245315506600351,4232718494405272448,13068480957975392281,1656389712476092736,11390076735979790091,11796706661256027651,13732249262986679840,784408202905464256,15786304117500569968,16241665388008590468,10626072583964199296,8274898505883341974,1409934359305354688,9384854683565908272,8383540163811987725,729444114658160,5156052546855580175,7889584002004316464,14151240171326615241,518123091613503216,9149655070220073211,265401291402945139,17884493460484181200,11372036411010000944,13226157764559834656,3027155879481095860,11795675626055040432,2931165094941064006,5443121968197610096,15737872901123058208,430531576944807229,3738277742293045922,6955296101961287679,14767086617101347680,5969230263343778809,4792808904004360736,1013443214962718187,9715423814303891427,3536245259776565888,15794884519647528352,7725370671057352400,6442382446093126756,15403004281091269728,7026959024173647350,9105456342995803936,8620923465347025680,6580128417251203949,1673905278433839250,11098922954401587183,1176255007280641680,9129731362557475625,14875181317410015824,8893458686794183131,1544873932636020819,6951612563877007792,7798217615579641360],"numeric_stats":null,"inferred_semantic_domain":"identifier","epistemic_status":"discovered"},{"field_name":"cust_ref_key","arrow_data_type":"Utf8","null_count":0,"null_ratio":0.0,"distinct_count":41,"uniqueness_ratio":0.5125,"top_k_values":["PTY-002A-000017","PTY-002A-000034","PTY-002A-000014","PTY-002A-000018","PTY-002A-000025","PTY-002A-000026","PTY-002A-000012","PTY-002A-000013","PTY-002A-000032","PTY-002A-000033"],"dominant_prefix":"PTY","minhash_signature":[354419078235376283,10383291678985686195,587680042010208331,1633836235261811746,219959793315943808,5638828197096153408,12116882545800115529,6977575245007039538,11247993442197272465,8127704836175796944,7633575404917295411,3857070302484424160,3943790486187517568,5213125496926863116,2170736933669981520,2519468053746559526,4005759241011977849,13175466893196518371,1721763518826874043,6826033800650804064,12696562486391837319,1510121146455883364,1038315131874576256,8127016677929585470,1585442958037168835,2727635337211794624,9593641538980864277,2952542964319959568,1915005773762144159,8403523565295501052,5800925107130923264,4247354521068211606,12616728959390625083,10289136283279924563,1951294722702860779,11081425948692449744,15374843008657934240,1123763574640682004,8428335370820663913,3153160015917142866,3668084805669210803,3251294743025376960,10936066990496878149,3245452238057247744,4133973373967644064,7031688575949311020,2089315344407235073,224391187089348730,11707271984036697195,722209670040729475,7096286137863961981,3907310126634830720,1095550943552178768,8159036172413196548,8848791810571862297,817192442968587486,515187097471819361,4432392806481270624,6747313693258911811,3957979997137705386,14420635248047853631,4957009763009363800,4097929042954479520,7204515111395157610],"numeric_stats":null,"inferred_semantic_domain":"identifier","epistemic_status":"discovered"},{"field_name":"order_total_usd","arrow_data_type":"Float64","null_count":0,"null_ratio":0.0,"distinct_count":74,"uniqueness_ratio":0.925,"top_k_values":["234.50","338.00","390.00","414.50","450.00","498.50","120.50","156.50","157.50","174.50"],"dominant_prefix":null,"minhash_signature":[760618574688928628,83668618950748956,37839849738707891,269168493249798955,78523442399753311,314881626123364517,251720745420621310,418702112700487690,342119234096782924,722088591353646240,51193065741547026,1017413241365799283,53624533974119780,43114575726790412,24262249054015495,36489386986264112,218715687346882698,368136685447891076,397023998761123145,238597663279599479,50203725807456116,250804222835768239,83631418821485261,4229165863863845,53855407027851891,148221614839885494,110845728072906830,315222948195119672,29352729611937882,5852888874706231,130137642526193862,42909907976643794,52982496539659185,888042645895806245,126405579026261963,317227361455646854,40672426292887572,267298927879012862,184387942571419337,14177778989519832,14933863853648844,686854528985280471,66149549828474961,513527844057942678,409009453218630067,888332068257648651,158733957119167512,8809760568293289,152947525892931803,134163060774155249,690921675858391621,239423835487266166,304589022451036367,144349525805441327,240095575344938472,524117743612748818,160859703205008507,582915661774204191,415757227017749496,100712634547881542,1053436664764164847,415088003023986788,42841896114806752,77069561331341683],"numeric_stats":{"min":120.5,"max":2858.5,"mean":446.38125,"is_sequential_integer":false},"inferred_semantic_domain":"identifier","epistemic_status":"discovered"},{"field_name":"status","arrow_data_type":"Utf8","null_count":0,"null_ratio":0.0,"distinct_count":2,"uniqueness_ratio":0.025,"top_k_values":["completed","shipped"],"dominant_prefix":null,"minhash_signature":[5882733660873781284,37239168788447631,5349143081484627422,11673961935225586813,6797870374446243270,4236292799850506029,1064496017498994378,8330673724968580897,7642197100079156732,1980367361660055369,184090612506431894,4511350060809938469,6962276338645825998,4433744630388015627,11216055913107658722,13910414518762032105,16541826557184443828,400423132503879167,11512880400936927150,5206915506905591483,14795922035375124032,8911494681626979581,555903394272302556,2467709435364969879,1414093403553841098,197503577748346585,13761543666007609126,2685146796004093843,6703354494758047358,2378025594705308725,6546884434942413874,11321547164357989337,3545727840422835634,2652946461268842097,761173233390523134,10532488354301368477,5174032310817838054,6261061318432142925,15307474419962838506,4012072236822222567,807392698033749626,15932452743327972457,9533722631361378998,8970954430609811269,11116676382453762280,2527520890589165611,7824601576378622516,7830291278516193545,1460612381563033812,1443282795340064769,3498623187840285144,2284468332248055437,15460784820029483798,4707729010381272093,1819916980885986106,11857496196964252343,5873979248330535914,8595419331530247673,585599517867730656,6091001122585922227,17280343333161856504,4393255394426321883,3969199590711080786,672854448691241103],"numeric_stats":null,"inferred_semantic_domain":"categorical","epistemic_status":"discovered"}]} 
+ </msg>
+<msg time="2026-11-23T13:40:14.033530" level="INFO">${prof_resp} = &lt;Response [200]&gt;</msg>
+<var>${prof_resp}</var>
+<arg>${BE_BASE_URL}/api/data-engine/v1/datasets/profile</arg>
+<arg>json=${prof_body}</arg>
+<arg>expected_status=200</arg>
+<doc>Sends a POST request.</doc>
+<status status="PASS" start="2026-11-23T13:40:14.014405" elapsed="0.019261"/>
+</kw>
+<kw name="Create Dictionary" owner="BuiltIn">
+<msg time="2026-11-23T13:40:14.036208" level="INFO">${rec_body} = {'dataset_name': 'orders'}</msg>
+<var>${rec_body}</var>
+<arg>dataset_name=orders</arg>
+<doc>Creates and returns a dictionary based on the given `items`.</doc>
+<status status="PASS" start="2026-11-23T13:40:14.034525" elapsed="0.001836"/>
+</kw>
+<kw name="POST" owner="RequestsLibrary">
+<msg time="2026-11-23T13:40:14.040432" level="DEBUG">Starting new HTTP connection (1): data-engine-be:80</msg>
+<msg time="2026-11-23T13:40:14.051832" level="DEBUG">http://data-engine-be:80 "POST /api/data-engine/v1/visuals/recommend HTTP/1.1" 200 946</msg>
+<msg time="2026-11-23T13:40:14.053358" level="INFO">POST Request : url=http://data-engine-be/api/data-engine/v1/visuals/recommend 
+ path_url=/api/data-engine/v1/visuals/recommend 
+ headers={'User-Agent': 'python-requests/2.34.2', 'Accept-Encoding': 'gzip, deflate, zstd', 'Accept': '*/*', 'Connection': 'keep-alive', 'Content-Length': '26', 'Content-Type': 'application/json'} 
+ body=b'{"dataset_name": "orders"}' 
+ </msg>
+<msg time="2026-11-23T13:40:14.053901" level="INFO">POST Response : url=http://data-engine-be/api/data-engine/v1/visuals/recommend 
+ status=200, reason=OK 
+ headers={'content-type': 'application/json', 'content-length': '946', 'date': 'Mon, 23 Nov 2026 13:40:13 GMT', 'x-envoy-upstream-service-time': '3', 'server': 'envoy'} 
+ body={"dataset_name":"orders","recommendations":[{"rank":1,"score":0.84,"rationale":"Frequency bar chart for categorical column 'status'.","visual_spec":{"visual_id":"rec-topk-status","title":"Count by status","description":"Auto-recommended categorical frequency chart","renderer":"vega_lite","chart_family":"bar","data_binding":{"kind":"parquet","dataset_id":"orders","parquet_path":"/tmp/de-robot-visuals-suite/sales_orders.parquet","sql":"SELECT status, COUNT(*) AS count FROM orders GROUP BY 1 ORDER BY 2 DESC","algorithm_id":null,"group_by":"status","metric_column":null,"aggregation":"count","semantic_rules":[],"query_plan":null},"spec":{"$schema":"https://vega.github.io/schema/vega-lite/v5.json","encoding":{"x":{"field":"status","sort":"-y","type":"nominal"},"y":{"aggregate":"count","type":"quantitative"}},"mark":"bar"},"profile_overlays":{"reference_lines":[],"annotations":[],"log_scale_recommended":false,"seasonality_period":null}}}]} 
+ </msg>
+<msg time="2026-11-23T13:40:14.055258" level="INFO">${rec_resp} = &lt;Response [200]&gt;</msg>
+<var>${rec_resp}</var>
+<arg>${BE_BASE_URL}/api/data-engine/v1/visuals/recommend</arg>
+<arg>json=${rec_body}</arg>
+<arg>expected_status=200</arg>
+<doc>Sends a POST request.</doc>
+<status status="PASS" start="2026-11-23T13:40:14.037101" elapsed="0.018366"/>
+</kw>
+<kw name="Get From Dictionary" owner="Collections">
+<msg time="2026-11-23T13:40:14.058251" level="INFO">${recs} = [{'rank': 1, 'score': 0.84, 'rationale': "Frequency bar chart for categorical column 'status'.", 'visual_spec': {'visual_id': 'rec-topk-status', 'title': 'Count by status', 'description': 'Auto-recomm...</msg>
+<var>${recs}</var>
+<arg>${rec_resp.json()}</arg>
+<arg>recommendations</arg>
+<doc>Returns a value from the given `dictionary` based on the given `key`.</doc>
+<status status="PASS" start="2026-11-23T13:40:14.056310" elapsed="0.002134"/>
+</kw>
+<kw name="Should Not Be Empty" owner="BuiltIn">
+<msg time="2026-11-23T13:40:14.061770" level="INFO">Length is 1.</msg>
+<arg>${recs}</arg>
+<doc>Verifies that the given item is not empty.</doc>
+<status status="PASS" start="2026-11-23T13:40:14.059117" elapsed="0.002984"/>
+</kw>
+<kw name="Create Dictionary" owner="BuiltIn">
+<msg time="2026-11-23T13:40:14.065399" level="INFO">${binding} = {'kind': 'dataset', 'dataset_id': 'orders'}</msg>
+<var>${binding}</var>
+<arg>kind=dataset</arg>
+<arg>dataset_id=orders</arg>
+<doc>Creates and returns a dictionary based on the given `items`.</doc>
+<status status="PASS" start="2026-11-23T13:40:14.063033" elapsed="0.002562"/>
+</kw>
+<kw name="Create Dictionary" owner="BuiltIn">
+<msg time="2026-11-23T13:40:14.069223" level="INFO">${spec} = {'mark': 'bar'}</msg>
+<var>${spec}</var>
+<arg>mark=bar</arg>
+<doc>Creates and returns a dictionary based on the given `items`.</doc>
+<status status="PASS" start="2026-11-23T13:40:14.066567" elapsed="0.002883"/>
+</kw>
+<kw name="Create Dictionary" owner="BuiltIn">
+<msg time="2026-11-23T13:40:14.072929" level="INFO">${vq_body} = {'title': 'Robot Orders Visual', 'renderer': 'vega_lite', 'chart_family': 'bar', 'data_binding': {'kind': 'dataset', 'dataset_id': 'orders'}, 'spec': {'mark': 'bar'}}</msg>
+<var>${vq_body}</var>
+<arg>title=Robot Orders Visual</arg>
+<arg>renderer=vega_lite</arg>
+<arg>chart_family=bar</arg>
+<arg>data_binding=${binding}</arg>
+<arg>spec=${spec}</arg>
+<doc>Creates and returns a dictionary based on the given `items`.</doc>
+<status status="PASS" start="2026-11-23T13:40:14.070424" elapsed="0.002685"/>
+</kw>
+<kw name="POST" owner="RequestsLibrary">
+<msg time="2026-11-23T13:40:14.077976" level="DEBUG">Starting new HTTP connection (1): data-engine-be:80</msg>
+<msg time="2026-11-23T13:40:14.091381" level="DEBUG">http://data-engine-be:80 "POST /api/data-engine/v1/visuals/query HTTP/1.1" 200 9121</msg>
+<msg time="2026-11-23T13:40:14.093596" level="INFO">POST Request : url=http://data-engine-be/api/data-engine/v1/visuals/query 
+ path_url=/api/data-engine/v1/visuals/query 
+ headers={'User-Agent': 'python-requests/2.34.2', 'Accept-Encoding': 'gzip, deflate, zstd', 'Accept': '*/*', 'Connection': 'keep-alive', 'Content-Length': '166', 'Content-Type': 'application/json'} 
+ body=b'{"title": "Robot Orders Visual", "renderer": "vega_lite", "chart_family": "bar", "data_binding": {"kind": "dataset", "dataset_id": "orders"}, "spec": {"mark": "bar"}}' 
+ </msg>
+<msg time="2026-11-23T13:40:14.093995" level="INFO">POST Response : url=http://data-engine-be/api/data-engine/v1/visuals/query 
+ status=200, reason=OK 
+ headers={'content-type': 'application/json', 'content-length': '9121', 'date': 'Mon, 23 Nov 2026 13:40:13 GMT', 'x-envoy-upstream-service-time': '6', 'server': 'envoy'} 
+ body={"visual_spec":{"visual_id":"vis-dc54900d-38d3-477f-9215-1e6e54f7b74c","title":"Robot Orders Visual","description":"","renderer":"vega_lite","chart_family":"bar","data_binding":{"kind":"dataset","dataset_id":"orders","parquet_path":null,"sql":null,"algorithm_id":null,"group_by":null,"metric_column":null,"aggregation":null,"semantic_rules":[],"query_plan":null},"spec":{"mark":"bar"},"profile_overlays":{"reference_lines":[],"annotations":[],"log_scale_recommended":false,"seasonality_period":null}},"data_values":[{"cust_ref_key":"PTY-002A-000001","order_id":"ORD-000001","order_total_usd":407.0,"status":"completed"},{"cust_ref_key":"PTY-002A-000002","order_id":"ORD-000002","order_total_usd":447.0,"status":"completed"},{"cust_ref_key":"PTY-002A-000003","order_id":"ORD-000003","order_total_usd":494.0,"status":"completed"},{"cust_ref_key":"PTY-002A-000004","order_id":"ORD-000004","order_total_usd":672.0,"status":"shipped"},{"cust_ref_key":"PTY-002A-000005","order_id":"ORD-000005","order_total_usd":365.0,"status":"completed"},{"cust_ref_key":"PTY-002A-000006","order_id":"ORD-000006","order_total_usd":505.5,"status":"completed"},{"cust_ref_key":"PTY-002A-000007","order_id":"ORD-000007","order_total_usd":338.0,"status":"completed"},{"cust_ref_key":"PTY-002A-000008","order_id":"ORD-000008","order_total_usd":574.5,"status":"shipped"},{"cust_ref_key":"PTY-002A-000009","order_id":"ORD-000009","order_total_usd":309.5,"status":"completed"},{"cust_ref_key":"PTY-002A-000010","order_id":"ORD-000010","order_total_usd":498.0,"status":"completed"},{"cust_ref_key":"PTY-002A-000011","order_id":"ORD-000011","order_total_usd":225.5,"status":"completed"},{"cust_ref_key":"PTY-002A-000012","order_id":"ORD-000012","order_total_usd":382.5,"status":"shipped"},{"cust_ref_key":"PTY-002A-000013","order_id":"ORD-000013","order_total_usd":174.5,"status":"completed"},{"cust_ref_key":"PTY-002A-000014","order_id":"ORD-000014","order_total_usd":534.0,"status":"completed"},{"cust_ref_key":"PTY-002A-000015","order_id":"ORD-000015","order_total_usd":315.5,"status":"completed"},{"cust_ref_key":"PTY-002A-000016","order_id":"ORD-000016","order_total_usd":549.0,"status":"shipped"},{"cust_ref_key":"PTY-002A-000017","order_id":"ORD-000017","order_total_usd":374.0,"status":"completed"},{"cust_ref_key":"PTY-002A-000018","order_id":"ORD-000018","order_total_usd":625.5,"status":"completed"},{"cust_ref_key":"PTY-002A-000019","order_id":"ORD-000019","order_total_usd":456.5,"status":"completed"},{"cust_ref_key":"PTY-002A-000020","order_id":"ORD-000020","order_total_usd":390.0,"status":"shipped"},{"cust_ref_key":"PTY-002A-000021","order_id":"ORD-000021","order_total_usd":156.5,"status":"completed"},{"cust_ref_key":"PTY-002A-000022","order_id":"ORD-000022","order_total_usd":220.5,"status":"completed"},{"cust_ref_key":"PTY-002A-000023","order_id":"ORD-000023","order_total_usd":218.0,"status":"completed"},{"cust_ref_key":"PTY-002A-000024","order_id":"ORD-000024","order_total_usd":490.5,"status":"shipped"},{"cust_ref_key":"PTY-002A-000025","order_id":"ORD-000025","order_total_usd":386.0,"status":"completed"},{"cust_ref_key":"PTY-002A-000026","order_id":"ORD-000026","order_total_usd":450.0,"status":"completed"},{"cust_ref_key":"PTY-002A-000027","order_id":"ORD-000027","order_total_usd":120.5,"status":"completed"},{"cust_ref_key":"PTY-002A-000028","order_id":"ORD-000028","order_total_usd":586.5,"status":"shipped"},{"cust_ref_key":"PTY-002A-000029","order_id":"ORD-000029","order_total_usd":431.0,"status":"completed"},{"cust_ref_key":"PTY-002A-000030","order_id":"ORD-000030","order_total_usd":489.0,"status":"completed"},{"cust_ref_key":"PTY-002A-000031","order_id":"ORD-000031","order_total_usd":276.5,"status":"completed"},{"cust_ref_key":"PTY-002A-000032","order_id":"ORD-000032","order_total_usd":601.5,"status":"shipped"},{"cust_ref_key":"PTY-002A-000033","order_id":"ORD-000033","order_total_usd":402.5,"status":"completed"},{"cust_ref_key":"PTY-002A-000034","order_id":"ORD-000034","order_total_usd":514.5,"status":"completed"},{"cust_ref_key":"PTY-002A-000035","order_id":"ORD-000035","order_total_usd":245.0,"status":"completed"},{"cust_ref_key":"PTY-002A-000036","order_id":"ORD-000036","order_total_usd":424.5,"status":"shipped"},{"cust_ref_key":"PTY-002A-000037","order_id":"ORD-000037","order_total_usd":234.5,"status":"completed"},{"cust_ref_key":"PTY-002A-000038","order_id":"ORD-000038","order_total_usd":610.5,"status":"completed"},{"cust_ref_key":"PTY-002A-000039","order_id":"ORD-000039","order_total_usd":317.0,"status":"completed"},{"cust_ref_key":"PTY-002A-000040","order_id":"ORD-000040","order_total_usd":462.0,"status":"shipped"},{"cust_ref_key":"PTY-002A-000026","order_id":"ORD-000041","order_total_usd":248.0,"status":"completed"},{"cust_ref_key":"PTY-002A-000014","order_id":"ORD-000042","order_total_usd":450.0,"status":"completed"},{"cust_ref_key":"PTY-002A-000026","order_id":"ORD-000043","order_total_usd":504.5,"status":"completed"},{"cust_ref_key":"PTY-002A-000033","order_id":"ORD-000044","order_total_usd":472.5,"status":"shipped"},{"cust_ref_key":"PTY-002A-000025","order_id":"ORD-000045","order_total_usd":368.0,"status":"completed"},{"cust_ref_key":"PTY-002A-000018","order_id":"ORD-000046","order_total_usd":460.5,"status":"completed"},{"cust_ref_key":"PTY-002A-000014","order_id":"ORD-000047","order_total_usd":408.5,"status":"completed"},{"cust_ref_key":"PTY-002A-000017","order_id":"ORD-000048","order_total_usd":607.5,"status":"shipped"},{"cust_ref_key":"PTY-002A-000018","order_id":"ORD-000049","order_total_usd":437.0,"status":"completed"},{"cust_ref_key":"PTY-002A-000026","order_id":"ORD-000050","order_total_usd":2858.5,"status":"completed"},{"cust_ref_key":"PTY-002A-000017","order_id":"ORD-000051","order_total_usd":441.5,"status":"completed"},{"cust_ref_key":"PTY-002A-000012","order_id":"ORD-000052","order_total_usd":400.5,"status":"shipped"},{"cust_ref_key":"PTY-002A-000031","order_id":"ORD-000053","order_total_usd":414.5,"status":"completed"},{"cust_ref_key":"PTY-002A-000014","order_id":"ORD-000054","order_total_usd":429.0,"status":"completed"},{"cust_ref_key":"PTY-002A-000035","order_id":"ORD-000055","order_total_usd":261.5,"status":"completed"},{"cust_ref_key":"PTY-002A-000028","order_id":"ORD-000056","order_total_usd":390.0,"status":"shipped"},{"cust_ref_key":"PTY-002A-000025","order_id":"ORD-000057","order_total_usd":338.0,"status":"completed"},{"cust_ref_key":"PTY-002A-000001","order_id":"ORD-000058","order_total_usd":634.5,"status":"completed"},{"cust_ref_key":"PTY-002A-000025","order_id":"ORD-000059","order_total_usd":242.0,"status":"completed"},{"cust_ref_key":"PTY-002A-000018","order_id":"ORD-000060","order_total_usd":715.5,"status":"shipped"},{"cust_ref_key":"PTY-GHOST-000060","order_id":"ORD-000061","order_total_usd":318.5,"status":"completed"},{"cust_ref_key":"PTY-002A-000013","order_id":"ORD-000062","order_total_usd":613.5,"status":"completed"},{"cust_ref_key":"PTY-002A-000012","order_id":"ORD-000063","order_total_usd":411.5,"status":"completed"},{"cust_ref_key":"PTY-002A-000033","order_id":"ORD-000064","order_total_usd":711.0,"status":"shipped"},{"cust_ref_key":"PTY-002A-000009","order_id":"ORD-000065","order_total_usd":390.5,"status":"completed"},{"cust_ref_key":"PTY-002A-000020","order_id":"ORD-000066","order_total_usd":286.5,"status":"completed"},{"cust_ref_key":"PTY-002A-000034","order_id":"ORD-000067","order_total_usd":414.5,"status":"completed"},{"cust_ref_key":"PTY-002A-000032","order_id":"ORD-000068","order_total_usd":685.5,"status":"shipped"},{"cust_ref_key":"PTY-002A-000034","order_id":"ORD-000069","order_total_usd":201.5,"status":"completed"},{"cust_ref_key":"PTY-002A-000017","order_id":"ORD-000070","order_total_usd":538.5,"status":"completed"},{"cust_ref_key":"PTY-002A-000027","order_id":"ORD-000071","order_total_usd":221.0,"status":"completed"},{"cust_ref_key":"PTY-002A-000004","order_id":"ORD-000072","order_total_usd":157.5,"status":"shipped"},{"cust_ref_key":"PTY-002A-000032","order_id":"ORD-000073","order_total_usd":498.5,"status":"completed"},{"cust_ref_key":"PTY-002A-000017","order_id":"ORD-000074","order_total_usd":547.5,"status":"completed"},{"cust_ref_key":"PTY-002A-000007","order_id":"ORD-000075","order_total_usd":498.5,"status":"completed"},{"cust_ref_key":"PTY-002A-000034","order_id":"ORD-000076","order_total_usd":642.0,"status":"shipped"},{"cust_ref_key":"PTY-002A-000034","order_id":"ORD-000077","order_total_usd":266.0,"status":"completed"},{"cust_ref_key":"PTY-002A-000015","order_id":"ORD-000078","order_total_usd":289.5,"status":"completed"},{"cust_ref_key":"PTY-002A-000013","order_id":"ORD-000079","order_total_usd":234.5,"status":"completed"},{"cust_ref_key":"PTY-002A-000035","order_id":"ORD-000080","order_total_usd":427.5,"status":"shipped"}],"provenance":{"provenance_run_id":"prov-cda50da9-71cf-4fff-a0e9-231a47446699","trust_summary":{"all_rules_human_verified":true,"min_rule_confidence":1.0,"verified_by_stewards":[],"pre_aggregation_applied":false,"unit_conversion_applied":false},"sampled":false,"population_rows":80,"rendered_rows":80,"sampling_seed":null}} 
+ </msg>
+<msg time="2026-11-23T13:40:14.095045" level="INFO">${vq_resp} = &lt;Response [200]&gt;</msg>
+<var>${vq_resp}</var>
+<arg>${BE_BASE_URL}/api/data-engine/v1/visuals/query</arg>
+<arg>json=${vq_body}</arg>
+<arg>expected_status=200</arg>
+<doc>Sends a POST request.</doc>
+<status status="PASS" start="2026-11-23T13:40:14.073815" elapsed="0.021392"/>
+</kw>
+<kw name="Get From Dictionary" owner="Collections">
+<msg time="2026-11-23T13:40:14.098384" level="INFO">${prov} = {'provenance_run_id': 'prov-cda50da9-71cf-4fff-a0e9-231a47446699', 'trust_summary': {'all_rules_human_verified': True, 'min_rule_confidence': 1.0, 'verified_by_stewards': [], 'pre_aggregation_applied'...</msg>
+<var>${prov}</var>
+<arg>${vq_resp.json()}</arg>
+<arg>provenance</arg>
+<doc>Returns a value from the given `dictionary` based on the given `key`.</doc>
+<status status="PASS" start="2026-11-23T13:40:14.096000" elapsed="0.002635"/>
+</kw>
+<kw name="Should Not Be Empty" owner="BuiltIn">
+<msg time="2026-11-23T13:40:14.102214" level="INFO">Length is 41.</msg>
+<arg>${prov['provenance_run_id']}</arg>
+<doc>Verifies that the given item is not empty.</doc>
+<status status="PASS" start="2026-11-23T13:40:14.099371" elapsed="0.003168"/>
+</kw>
+<kw name="Should Be Equal As Integers" owner="BuiltIn">
+<msg time="2026-11-23T13:40:14.105598" level="INFO">Argument types are:
+&lt;class 'int'&gt;
+&lt;class 'str'&gt;</msg>
+<arg>${prov['rendered_rows']}</arg>
+<arg>80</arg>
+<doc>Fails if objects are unequal after converting them to integers.</doc>
+<status status="PASS" start="2026-11-23T13:40:14.103337" elapsed="0.002630"/>
+</kw>
+<kw name="Create Dictionary" owner="BuiltIn">
+<msg time="2026-11-23T13:40:14.109306" level="INFO">${create_body} = {'name': 'Robot Saved Chart', 'description': 'E2E Test', 'renderer': 'vega_lite', 'chart_family': 'bar', 'primary_dataset_id': 'orders', 'data_binding': {'kind': 'dataset', 'dataset_id': 'orders'}, 'v...</msg>
+<var>${create_body}</var>
+<arg>name=Robot Saved Chart</arg>
+<arg>description=E2E Test</arg>
+<arg>renderer=vega_lite</arg>
+<arg>chart_family=bar</arg>
+<arg>primary_dataset_id=orders</arg>
+<arg>data_binding=${binding}</arg>
+<arg>visual_spec=${spec}</arg>
+<doc>Creates and returns a dictionary based on the given `items`.</doc>
+<status status="PASS" start="2026-11-23T13:40:14.106815" elapsed="0.002662"/>
+</kw>
+<kw name="POST" owner="RequestsLibrary">
+<msg time="2026-11-23T13:40:14.114111" level="DEBUG">Starting new HTTP connection (1): data-engine-be:80</msg>
+<msg time="2026-11-23T13:40:14.187522" level="DEBUG">http://data-engine-be:80 "POST /api/data-engine/v1/visuals HTTP/1.1" 201 568</msg>
+<msg time="2026-11-23T13:40:14.188987" level="INFO">POST Request : url=http://data-engine-be/api/data-engine/v1/visuals 
+ path_url=/api/data-engine/v1/visuals 
+ headers={'User-Agent': 'python-requests/2.34.2', 'Accept-Encoding': 'gzip, deflate, zstd', 'Accept': '*/*', 'Connection': 'keep-alive', 'Content-Length': '229', 'Content-Type': 'application/json'} 
+ body=b'{"name": "Robot Saved Chart", "description": "E2E Test", "renderer": "vega_lite", "chart_family": "bar", "primary_dataset_id": "orders", "data_binding": {"kind": "dataset", "dataset_id": "orders"}, "visual_spec": {"mark": "bar"}}' 
+ </msg>
+<msg time="2026-11-23T13:40:14.189568" level="INFO">POST Response : url=http://data-engine-be/api/data-engine/v1/visuals 
+ status=201, reason=Created 
+ headers={'content-type': 'application/json', 'content-length': '568', 'date': 'Mon, 23 Nov 2026 13:40:13 GMT', 'x-envoy-upstream-service-time': '43', 'server': 'envoy'} 
+ body={"id":"6a396a6c-539d-481d-922b-e65d2166afda","name":"Robot Saved Chart","description":"E2E Test","renderer":"vega_lite","chart_family":"bar","primary_dataset_id":"orders","data_binding":{"kind":"dataset","dataset_id":"orders","parquet_path":null,"sql":null,"algorithm_id":null,"group_by":null,"metric_column":null,"aggregation":null,"semantic_rules":[],"query_plan":null},"visual_spec":{"mark":"bar"},"profile_overlays":{"reference_lines":[],"annotations":[],"log_scale_recommended":false,"seasonality_period":null},"last_provenance_run_id":null,"created_by":"system"} 
+ </msg>
+<msg time="2026-11-23T13:40:14.190219" level="INFO">${create_resp} = &lt;Response [201]&gt;</msg>
+<var>${create_resp}</var>
+<arg>${BE_BASE_URL}/api/data-engine/v1/visuals</arg>
+<arg>json=${create_body}</arg>
+<arg>expected_status=201</arg>
+<doc>Sends a POST request.</doc>
+<status status="PASS" start="2026-11-23T13:40:14.110362" elapsed="0.080020"/>
+</kw>
+<kw name="Set Variable" owner="BuiltIn">
+<msg time="2026-11-23T13:40:14.194194" level="INFO">${vis_id} = 6a396a6c-539d-481d-922b-e65d2166afda</msg>
+<var>${vis_id}</var>
+<arg>${create_resp.json()['id']}</arg>
+<doc>Returns the given values which can then be assigned to a variable.</doc>
+<status status="PASS" start="2026-11-23T13:40:14.191020" elapsed="0.003536"/>
+</kw>
+<kw name="GET" owner="RequestsLibrary">
+<msg time="2026-11-23T13:40:14.199215" level="DEBUG">Starting new HTTP connection (1): data-engine-be:80</msg>
+<msg time="2026-11-23T13:40:14.211545" level="DEBUG">http://data-engine-be:80 "GET /api/data-engine/v1/visuals/6a396a6c-539d-481d-922b-e65d2166afda HTTP/1.1" 200 568</msg>
+<msg time="2026-11-23T13:40:14.213110" level="INFO">GET Request : url=http://data-engine-be/api/data-engine/v1/visuals/6a396a6c-539d-481d-922b-e65d2166afda 
+ path_url=/api/data-engine/v1/visuals/6a396a6c-539d-481d-922b-e65d2166afda 
+ headers={'User-Agent': 'python-requests/2.34.2', 'Accept-Encoding': 'gzip, deflate, zstd', 'Accept': '*/*', 'Connection': 'keep-alive'} 
+ body=None 
+ </msg>
+<msg time="2026-11-23T13:40:14.213514" level="INFO">GET Response : url=http://data-engine-be/api/data-engine/v1/visuals/6a396a6c-539d-481d-922b-e65d2166afda 
+ status=200, reason=OK 
+ headers={'content-type': 'application/json', 'content-length': '568', 'date': 'Mon, 23 Nov 2026 13:40:14 GMT', 'x-envoy-upstream-service-time': '2', 'server': 'envoy'} 
+ body={"id":"6a396a6c-539d-481d-922b-e65d2166afda","name":"Robot Saved Chart","description":"E2E Test","renderer":"vega_lite","chart_family":"bar","primary_dataset_id":"orders","data_binding":{"kind":"dataset","dataset_id":"orders","parquet_path":null,"sql":null,"algorithm_id":null,"group_by":null,"metric_column":null,"aggregation":null,"semantic_rules":[],"query_plan":null},"visual_spec":{"mark":"bar"},"profile_overlays":{"reference_lines":[],"annotations":[],"log_scale_recommended":false,"seasonality_period":null},"last_provenance_run_id":null,"created_by":"system"} 
+ </msg>
+<arg>${BE_BASE_URL}/api/data-engine/v1/visuals/${vis_id}</arg>
+<arg>expected_status=200</arg>
+<doc>Sends a GET request.</doc>
+<status status="PASS" start="2026-11-23T13:40:14.195680" elapsed="0.018247"/>
+</kw>
+<kw name="DELETE" owner="RequestsLibrary">
+<msg time="2026-11-23T13:40:14.219633" level="DEBUG">Starting new HTTP connection (1): data-engine-be:80</msg>
+<msg time="2026-11-23T13:40:14.293753" level="DEBUG">http://data-engine-be:80 "DELETE /api/data-engine/v1/visuals/6a396a6c-539d-481d-922b-e65d2166afda HTTP/1.1" 204 0</msg>
+<msg time="2026-11-23T13:40:14.295425" level="INFO">DELETE Request : url=http://data-engine-be/api/data-engine/v1/visuals/6a396a6c-539d-481d-922b-e65d2166afda 
+ path_url=/api/data-engine/v1/visuals/6a396a6c-539d-481d-922b-e65d2166afda 
+ headers={'User-Agent': 'python-requests/2.34.2', 'Accept-Encoding': 'gzip, deflate, zstd', 'Accept': '*/*', 'Connection': 'keep-alive', 'Content-Length': '0'} 
+ body=None 
+ </msg>
+<msg time="2026-11-23T13:40:14.295838" level="INFO">DELETE Response : url=http://data-engine-be/api/data-engine/v1/visuals/6a396a6c-539d-481d-922b-e65d2166afda 
+ status=204, reason=No Content 
+ headers={'date': 'Mon, 23 Nov 2026 13:40:14 GMT', 'x-envoy-upstream-service-time': '24', 'server': 'envoy'} 
+ body=None 
+ </msg>
+<arg>${BE_BASE_URL}/api/data-engine/v1/visuals/${vis_id}</arg>
+<arg>expected_status=204</arg>
+<doc>Sends a DELETE request.</doc>
+<status status="PASS" start="2026-11-23T13:40:14.214733" elapsed="0.082373"/>
+</kw>
+<kw name="GET" owner="RequestsLibrary">
+<msg time="2026-11-23T13:40:14.304287" level="DEBUG">Starting new HTTP connection (1): data-engine-be:80</msg>
+<msg time="2026-11-23T13:40:14.315802" level="DEBUG">http://data-engine-be:80 "GET /api/data-engine/v1/visuals/6a396a6c-539d-481d-922b-e65d2166afda HTTP/1.1" 404 73</msg>
+<msg time="2026-11-23T13:40:14.317940" level="INFO">GET Request : url=http://data-engine-be/api/data-engine/v1/visuals/6a396a6c-539d-481d-922b-e65d2166afda 
+ path_url=/api/data-engine/v1/visuals/6a396a6c-539d-481d-922b-e65d2166afda 
+ headers={'User-Agent': 'python-requests/2.34.2', 'Accept-Encoding': 'gzip, deflate, zstd', 'Accept': '*/*', 'Connection': 'keep-alive'} 
+ body=None 
+ </msg>
+<msg time="2026-11-23T13:40:14.318413" level="INFO">GET Response : url=http://data-engine-be/api/data-engine/v1/visuals/6a396a6c-539d-481d-922b-e65d2166afda 
+ status=404, reason=Not Found 
+ headers={'content-type': 'application/json', 'content-length': '73', 'date': 'Mon, 23 Nov 2026 13:40:14 GMT', 'x-envoy-upstream-service-time': '3', 'server': 'envoy'} 
+ body={"error":"saved visual '6a396a6c-539d-481d-922b-e65d2166afda' not found"} 
+ </msg>
+<arg>${BE_BASE_URL}/api/data-engine/v1/visuals/${vis_id}</arg>
+<arg>expected_status=404</arg>
+<doc>Sends a GET request.</doc>
+<status status="PASS" start="2026-11-23T13:40:14.298595" elapsed="0.020823"/>
+</kw>
+<doc>Verifies POST /visuals/recommend, POST /visuals/query (with ProvenanceRun), and saved visuals BREAD lifecycle.</doc>
+<tag>spec13</tag>
+<tag>visuals</tag>
+<status status="PASS" start="2026-11-23T13:40:13.968620" elapsed="0.351733"/>
+</test>
+<test id="s1-s1-s2-t2" name="Topology Graph Dataset Anatomy Mermaid And MCP Tools" line="45">
+<kw name="Create Dictionary" owner="BuiltIn">
+<msg time="2026-11-23T13:40:14.330370" level="INFO">${topo_params} = {'lens': 'semantic_3layer'}</msg>
+<var>${topo_params}</var>
+<arg>lens=semantic_3layer</arg>
+<doc>Creates and returns a dictionary based on the given `items`.</doc>
+<status status="PASS" start="2026-11-23T13:40:14.327190" elapsed="0.003424"/>
+</kw>
+<kw name="GET" owner="RequestsLibrary">
+<msg time="2026-11-23T13:40:14.339789" level="DEBUG">Starting new HTTP connection (1): data-engine-be:80</msg>
+<msg time="2026-11-23T13:40:14.365725" level="DEBUG">http://data-engine-be:80 "GET /api/data-engine/v1/topology/graph?lens=semantic_3layer HTTP/1.1" 200 3687</msg>
+<msg time="2026-11-23T13:40:14.367228" level="INFO">GET Request : url=http://data-engine-be/api/data-engine/v1/topology/graph?lens=semantic_3layer 
+ path_url=/api/data-engine/v1/topology/graph?lens=semantic_3layer 
+ headers={'User-Agent': 'python-requests/2.34.2', 'Accept-Encoding': 'gzip, deflate, zstd', 'Accept': '*/*', 'Connection': 'keep-alive'} 
+ body=None 
+ </msg>
+<msg time="2026-11-23T13:40:14.367722" level="INFO">GET Response : url=http://data-engine-be/api/data-engine/v1/topology/graph?lens=semantic_3layer 
+ status=200, reason=OK 
+ headers={'content-type': 'application/json', 'content-length': '3687', 'date': 'Mon, 23 Nov 2026 13:40:14 GMT', 'x-envoy-upstream-service-time': '11', 'server': 'envoy'} 
+ body={"lens":"semantic_3layer","graphrag_overlay_degraded":false,"truncated":false,"total_nodes":6,"total_edges":5,"applied_filter_hint":null,"communities":[],"nodes":[{"id":"src_local_parquet","kind":"source","layer":1,"parent_id":null,"label":"local_parquet","subtitle":"Registered Data Source","epistemic_status":"verified","confidence":1.0,"badges":["source"],"field_count":null,"metadata":{"source_name":"local_parquet"}},{"id":"orders","kind":"dataset","layer":1,"parent_id":"src_local_parquet","label":"orders","subtitle":"1 row per orders record • 80 rows","epistemic_status":"discovered","confidence":1.0,"badges":["parquet"],"field_count":4,"metadata":{"drift_findings":[],"format":"parquet","grain_description":"1 row per orders record","row_count_estimate":80,"schema_fingerprint_sha256":"037b85adf55cd8dd09f01eb5238eb63046d0d9e3e4bbe1b7b2a6572604255898"}},{"id":"orders.cust_ref_key","kind":"field","layer":0,"parent_id":"orders","label":"cust_ref_key","subtitle":"Utf8 • 0% null","epistemic_status":"discovered","confidence":1.0,"badges":["Utf8"],"field_count":null,"metadata":{"arrow_data_type":"Utf8","distinct_count":41,"inferred_semantic_domain":"identifier","null_ratio":0.0,"statistical_profile":null}},{"id":"orders.order_id","kind":"field","layer":0,"parent_id":"orders","label":"order_id","subtitle":"Utf8 • 0% null","epistemic_status":"discovered","confidence":1.0,"badges":["Utf8","pk"],"field_count":null,"metadata":{"arrow_data_type":"Utf8","distinct_count":80,"inferred_semantic_domain":"identifier","null_ratio":0.0,"statistical_profile":null}},{"id":"orders.order_total_usd","kind":"field","layer":0,"parent_id":"orders","label":"order_total_usd","subtitle":"Float64 • 0% null","epistemic_status":"discovered","confidence":1.0,"badges":["Float64"],"field_count":null,"metadata":{"arrow_data_type":"Float64","distinct_count":74,"inferred_semantic_domain":"identifier","null_ratio":0.0,"statistical_profile":null}},{"id":"orders.status","kind":"field","layer":0,"parent_id":"orders","label":"status","subtitle":"Utf8 • 0% null","epistemic_status":"discovered","confidence":1.0,"badges":["Utf8"],"field_count":null,"metadata":{"arrow_data_type":"Utf8","distinct_count":2,"inferred_semantic_domain":"categorical","null_ratio":0.0,"statistical_profile":null}}],"edges":[{"id":"has_field_orders.cust_ref_key","source_id":"orders","target_id":"orders.cust_ref_key","predicate":"HAS_FIELD","cardinality":null,"epistemic_status":"verified","confidence":1.0,"inclusion_ratio":null,"fan_out_warning":null,"filter_invariant":null,"steward_notes":null},{"id":"has_field_orders.order_id","source_id":"orders","target_id":"orders.order_id","predicate":"HAS_FIELD","cardinality":null,"epistemic_status":"verified","confidence":1.0,"inclusion_ratio":null,"fan_out_warning":null,"filter_invariant":null,"steward_notes":null},{"id":"has_field_orders.order_total_usd","source_id":"orders","target_id":"orders.order_total_usd","predicate":"HAS_FIELD","cardinality":null,"epistemic_status":"verified","confidence":1.0,"inclusion_ratio":null,"fan_out_warning":null,"filter_invariant":null,"steward_notes":null},{"id":"has_field_orders.status","source_id":"orders","target_id":"orders.status","predicate":"HAS_FIELD","cardinality":null,"epistemic_status":"verified","confidence":1.0,"inclusion_ratio":null,"fan_out_warning":null,"filter_invariant":null,"steward_notes":null},{"id":"provides_src_local_parquet_orders","source_id":"src_local_parquet","target_id":"orders","predicate":"PROVIDES","cardinality":null,"epistemic_status":"verified","confidence":1.0,"inclusion_ratio":null,"fan_out_warning":null,"filter_invariant":null,"steward_notes":null}],"highlighted_path":null} 
+ </msg>
+<msg time="2026-11-23T13:40:14.370355" level="INFO">${topo_resp} = &lt;Response [200]&gt;</msg>
+<var>${topo_resp}</var>
+<arg>url=${BE_BASE_URL}/api/data-engine/v1/topology/graph</arg>
+<arg>params=${topo_params}</arg>
+<arg>expected_status=200</arg>
+<doc>Sends a GET request.</doc>
+<status status="PASS" start="2026-11-23T13:40:14.331937" elapsed="0.038677"/>
+</kw>
+<kw name="Should Not Be Empty" owner="BuiltIn">
+<msg time="2026-11-23T13:40:14.375316" level="INFO">Length is 6.</msg>
+<arg>${topo_resp.json()['nodes']}</arg>
+<doc>Verifies that the given item is not empty.</doc>
+<status status="PASS" start="2026-11-23T13:40:14.372045" elapsed="0.003693"/>
+</kw>
+<kw name="GET" owner="RequestsLibrary">
+<msg time="2026-11-23T13:40:14.381721" level="DEBUG">Starting new HTTP connection (1): data-engine-be:80</msg>
+<msg time="2026-11-23T13:40:14.392262" level="DEBUG">http://data-engine-be:80 "GET /api/data-engine/v1/topology/anatomy/dataset/orders HTTP/1.1" 200 2419</msg>
+<msg time="2026-11-23T13:40:14.393677" level="INFO">GET Request : url=http://data-engine-be/api/data-engine/v1/topology/anatomy/dataset/orders 
+ path_url=/api/data-engine/v1/topology/anatomy/dataset/orders 
+ headers={'User-Agent': 'python-requests/2.34.2', 'Accept-Encoding': 'gzip, deflate, zstd', 'Accept': '*/*', 'Connection': 'keep-alive'} 
+ body=None 
+ </msg>
+<msg time="2026-11-23T13:40:14.394120" level="INFO">GET Response : url=http://data-engine-be/api/data-engine/v1/topology/anatomy/dataset/orders 
+ status=200, reason=OK 
+ headers={'content-type': 'application/json', 'content-length': '2419', 'date': 'Mon, 23 Nov 2026 13:40:14 GMT', 'x-envoy-upstream-service-time': '4', 'server': 'envoy'} 
+ body={"dataset_id":"orders","canonical_id":"orders","format":"parquet","grain_description":"1 row per orders record","row_count_estimate":80,"schema_fingerprint_sha256":"037b85adf55cd8dd09f01eb5238eb63046d0d9e3e4bbe1b7b2a6572604255898","epistemic_status":"discovered","schema_tree":[{"name":"order_id","full_path":"order_id","node_kind":"field","arrow_data_type":"Utf8","is_primary_key_candidate":true,"epistemic_status":"discovered","null_ratio":0.0,"distinct_count":80,"top_values":["ORD-000001","ORD-000002","ORD-000003","ORD-000004","ORD-000005","ORD-000006","ORD-000007","ORD-000008","ORD-000009","ORD-000010"],"mini_histogram_bins":[{"label":"ORD-000001","count":50},{"label":"ORD-000002","count":40},{"label":"ORD-000003","count":30},{"label":"ORD-000004","count":20},{"label":"ORD-000005","count":10}],"statistical_profile":null,"children":[]},{"name":"cust_ref_key","full_path":"cust_ref_key","node_kind":"field","arrow_data_type":"Utf8","is_primary_key_candidate":false,"epistemic_status":"discovered","null_ratio":0.0,"distinct_count":41,"top_values":["PTY-002A-000017","PTY-002A-000034","PTY-002A-000014","PTY-002A-000018","PTY-002A-000025","PTY-002A-000026","PTY-002A-000012","PTY-002A-000013","PTY-002A-000032","PTY-002A-000033"],"mini_histogram_bins":[{"label":"PTY-002A-000017","count":50},{"label":"PTY-002A-000034","count":40},{"label":"PTY-002A-000014","count":30},{"label":"PTY-002A-000018","count":20},{"label":"PTY-002A-000025","count":10}],"statistical_profile":null,"children":[]},{"name":"order_total_usd","full_path":"order_total_usd","node_kind":"field","arrow_data_type":"Float64","is_primary_key_candidate":false,"epistemic_status":"discovered","null_ratio":0.0,"distinct_count":74,"top_values":["234.50","338.00","390.00","414.50","450.00","498.50","120.50","156.50","157.50","174.50"],"mini_histogram_bins":[{"label":"234.50","count":50},{"label":"338.00","count":40},{"label":"390.00","count":30},{"label":"414.50","count":20},{"label":"450.00","count":10}],"statistical_profile":null,"children":[]},{"name":"status","full_path":"status","node_kind":"field","arrow_data_type":"Utf8","is_primary_key_candidate":false,"epistemic_status":"discovered","null_ratio":0.0,"distinct_count":2,"top_values":["completed","shipped"],"mini_histogram_bins":[{"label":"completed","count":50},{"label":"shipped","count":40}],"statistical_profile":null,"children":[]}],"incident_joins":[],"semantic_links":[]} 
+ </msg>
+<msg time="2026-11-23T13:40:14.394930" level="INFO">${anat_resp} = &lt;Response [200]&gt;</msg>
+<var>${anat_resp}</var>
+<arg>url=${BE_BASE_URL}/api/data-engine/v1/topology/anatomy/dataset/orders</arg>
+<arg>expected_status=200</arg>
+<doc>Sends a GET request.</doc>
+<status status="PASS" start="2026-11-23T13:40:14.376512" elapsed="0.018615"/>
+</kw>
+<kw name="Should Be Equal As Strings" owner="BuiltIn">
+<msg time="2026-11-23T13:40:14.398378" level="DEBUG">Argument types are:
+&lt;class 'str'&gt;
+&lt;class 'str'&gt;</msg>
+<arg>${anat_resp.json()['canonical_id']}</arg>
+<arg>orders</arg>
+<doc>Fails if objects are unequal after converting them to strings.</doc>
+<status status="PASS" start="2026-11-23T13:40:14.395920" elapsed="0.002725"/>
+</kw>
+<kw name="Create Dictionary" owner="BuiltIn">
+<msg time="2026-11-23T13:40:14.401839" level="INFO">${mm_params} = {'lens': 'er_join'}</msg>
+<var>${mm_params}</var>
+<arg>lens=er_join</arg>
+<doc>Creates and returns a dictionary based on the given `items`.</doc>
+<status status="PASS" start="2026-11-23T13:40:14.399405" elapsed="0.002620"/>
+</kw>
+<kw name="GET" owner="RequestsLibrary">
+<msg time="2026-11-23T13:40:14.406303" level="DEBUG">Starting new HTTP connection (1): data-engine-be:80</msg>
+<msg time="2026-11-23T13:40:14.416277" level="DEBUG">http://data-engine-be:80 "GET /api/data-engine/v1/topology/mermaid?lens=er_join HTTP/1.1" 200 3866</msg>
+<msg time="2026-11-23T13:40:14.417257" level="INFO">GET Request : url=http://data-engine-be/api/data-engine/v1/topology/mermaid?lens=er_join 
+ path_url=/api/data-engine/v1/topology/mermaid?lens=er_join 
+ headers={'User-Agent': 'python-requests/2.34.2', 'Accept-Encoding': 'gzip, deflate, zstd', 'Accept': '*/*', 'Connection': 'keep-alive'} 
+ body=None 
+ </msg>
+<msg time="2026-11-23T13:40:14.417650" level="INFO">GET Response : url=http://data-engine-be/api/data-engine/v1/topology/mermaid?lens=er_join 
+ status=200, reason=OK 
+ headers={'content-type': 'application/json', 'content-length': '3866', 'date': 'Mon, 23 Nov 2026 13:40:14 GMT', 'x-envoy-upstream-service-time': '4', 'server': 'envoy'} 
+ body={"diagram_kind":"erDiagram","mermaid":"erDiagram\n    ORDERS {\n        Utf8 cust_ref_key\n        Utf8 order_id PK\n        Float64 order_total_usd\n        Utf8 status\n    }","graph":{"lens":"er_join","graphrag_overlay_degraded":false,"truncated":false,"total_nodes":6,"total_edges":5,"applied_filter_hint":null,"communities":[],"nodes":[{"id":"src_local_parquet","kind":"source","layer":1,"parent_id":null,"label":"local_parquet","subtitle":"Registered Data Source","epistemic_status":"verified","confidence":1.0,"badges":["source"],"field_count":null,"metadata":{"source_name":"local_parquet"}},{"id":"orders","kind":"dataset","layer":1,"parent_id":"src_local_parquet","label":"orders","subtitle":"1 row per orders record • 80 rows","epistemic_status":"discovered","confidence":1.0,"badges":["parquet"],"field_count":4,"metadata":{"drift_findings":[],"format":"parquet","grain_description":"1 row per orders record","row_count_estimate":80,"schema_fingerprint_sha256":"037b85adf55cd8dd09f01eb5238eb63046d0d9e3e4bbe1b7b2a6572604255898"}},{"id":"orders.cust_ref_key","kind":"field","layer":0,"parent_id":"orders","label":"cust_ref_key","subtitle":"Utf8 • 0% null","epistemic_status":"discovered","confidence":1.0,"badges":["Utf8"],"field_count":null,"metadata":{"arrow_data_type":"Utf8","distinct_count":41,"inferred_semantic_domain":"identifier","null_ratio":0.0,"statistical_profile":null}},{"id":"orders.order_id","kind":"field","layer":0,"parent_id":"orders","label":"order_id","subtitle":"Utf8 • 0% null","epistemic_status":"discovered","confidence":1.0,"badges":["Utf8","pk"],"field_count":null,"metadata":{"arrow_data_type":"Utf8","distinct_count":80,"inferred_semantic_domain":"identifier","null_ratio":0.0,"statistical_profile":null}},{"id":"orders.order_total_usd","kind":"field","layer":0,"parent_id":"orders","label":"order_total_usd","subtitle":"Float64 • 0% null","epistemic_status":"discovered","confidence":1.0,"badges":["Float64"],"field_count":null,"metadata":{"arrow_data_type":"Float64","distinct_count":74,"inferred_semantic_domain":"identifier","null_ratio":0.0,"statistical_profile":null}},{"id":"orders.status","kind":"field","layer":0,"parent_id":"orders","label":"status","subtitle":"Utf8 • 0% null","epistemic_status":"discovered","confidence":1.0,"badges":["Utf8"],"field_count":null,"metadata":{"arrow_data_type":"Utf8","distinct_count":2,"inferred_semantic_domain":"categorical","null_ratio":0.0,"statistical_profile":null}}],"edges":[{"id":"has_field_orders.cust_ref_key","source_id":"orders","target_id":"orders.cust_ref_key","predicate":"HAS_FIELD","cardinality":null,"epistemic_status":"verified","confidence":1.0,"inclusion_ratio":null,"fan_out_warning":null,"filter_invariant":null,"steward_notes":null},{"id":"has_field_orders.order_id","source_id":"orders","target_id":"orders.order_id","predicate":"HAS_FIELD","cardinality":null,"epistemic_status":"verified","confidence":1.0,"inclusion_ratio":null,"fan_out_warning":null,"filter_invariant":null,"steward_notes":null},{"id":"has_field_orders.order_total_usd","source_id":"orders","target_id":"orders.order_total_usd","predicate":"HAS_FIELD","cardinality":null,"epistemic_status":"verified","confidence":1.0,"inclusion_ratio":null,"fan_out_warning":null,"filter_invariant":null,"steward_notes":null},{"id":"has_field_orders.status","source_id":"orders","target_id":"orders.status","predicate":"HAS_FIELD","cardinality":null,"epistemic_status":"verified","confidence":1.0,"inclusion_ratio":null,"fan_out_warning":null,"filter_invariant":null,"steward_notes":null},{"id":"provides_src_local_parquet_orders","source_id":"src_local_parquet","target_id":"orders","predicate":"PROVIDES","cardinality":null,"epistemic_status":"verified","confidence":1.0,"inclusion_ratio":null,"fan_out_warning":null,"filter_invariant":null,"steward_notes":null}],"highlighted_path":null}} 
+ </msg>
+<msg time="2026-11-23T13:40:14.418537" level="INFO">${mm_resp} = &lt;Response [200]&gt;</msg>
+<var>${mm_resp}</var>
+<arg>url=${BE_BASE_URL}/api/data-engine/v1/topology/mermaid</arg>
+<arg>params=${mm_params}</arg>
+<arg>expected_status=200</arg>
+<doc>Sends a GET request.</doc>
+<status status="PASS" start="2026-11-23T13:40:14.402756" elapsed="0.015978"/>
+</kw>
+<kw name="Should Be Equal As Strings" owner="BuiltIn">
+<msg time="2026-11-23T13:40:14.422109" level="DEBUG">Argument types are:
+&lt;class 'str'&gt;
+&lt;class 'str'&gt;</msg>
+<arg>${mm_resp.json()['diagram_kind']}</arg>
+<arg>erDiagram</arg>
+<doc>Fails if objects are unequal after converting them to strings.</doc>
+<status status="PASS" start="2026-11-23T13:40:14.419425" elapsed="0.003104"/>
+</kw>
+<kw name="Create Dictionary" owner="BuiltIn">
+<msg time="2026-11-23T13:40:14.425701" level="INFO">${rpc_body} = {'jsonrpc': '2.0', 'id': 1, 'method': 'tools/list'}</msg>
+<var>${rpc_body}</var>
+<arg>jsonrpc=2.0</arg>
+<arg>id=${1}</arg>
+<arg>method=tools/list</arg>
+<doc>Creates and returns a dictionary based on the given `items`.</doc>
+<status status="PASS" start="2026-11-23T13:40:14.423389" elapsed="0.002451"/>
+</kw>
+<kw name="POST" owner="RequestsLibrary">
+<msg time="2026-11-23T13:40:14.429548" level="DEBUG">Starting new HTTP connection (1): data-engine-be:80</msg>
+<msg time="2026-11-23T13:40:14.444057" level="DEBUG">http://data-engine-be:80 "POST /api/data-engine/v1/mcp HTTP/1.1" 200 11761</msg>
+<msg time="2026-11-23T13:40:14.445203" level="INFO">POST Request : url=http://data-engine-be/api/data-engine/v1/mcp 
+ path_url=/api/data-engine/v1/mcp 
+ headers={'User-Agent': 'python-requests/2.34.2', 'Accept-Encoding': 'gzip, deflate, zstd', 'Accept': '*/*', 'Connection': 'keep-alive', 'Content-Length': '51', 'Content-Type': 'application/json'} 
+ body=b'{"jsonrpc": "2.0", "id": 1, "method": "tools/list"}' 
+ </msg>
+<msg time="2026-11-23T13:40:14.445480" level="INFO">POST Response : url=http://data-engine-be/api/data-engine/v1/mcp 
+ status=200, reason=OK 
+ headers={'content-type': 'application/json', 'content-length': '11761', 'date': 'Mon, 23 Nov 2026 13:40:14 GMT', 'x-envoy-upstream-service-time': '8', 'server': 'envoy'} 
+ body={"id":1,"jsonrpc":"2.0","result":{"tools":[{"description":"List all hydrated, SHA-256-pinned built-in statistical algorithms.","inputSchema":{"$schema":"https://json-schema.org/draft/2020-12/schema","type":"object"},"name":"algorithm_browse"},{"description":"Health-check MCP tool returning a greeting from data-engine.","inputSchema":{"$schema":"https://json-schema.org/draft/2020-12/schema","properties":{"name":{"description":"Optional name of the caller or entity to greet (defaults to 'world').","type":["string","null"]}},"type":"object"},"name":"hello"},{"description":"Compute Pearson/Spearman/Kendall correlation matrices with FDR adjustment, partial correlations, and VIF multicollinearity diagnostics.","inputSchema":{"$schema":"https://json-schema.org/draft/2020-12/schema","properties":{"columns":{"description":"Numeric column names to include in correlation and VIF analysis.","items":{"type":"string"},"type":"array"},"control_cols":{"description":"Optional control columns for partial correlation computation.","items":{"type":"string"},"type":["array","null"]},"correction":{"description":"Multiple-testing correction method (default 'fdr_bh').","type":["string","null"]},"input_binding":{"description":"Dataset input binding object containing dataset_name and parquet_path."},"methods":{"description":"Correlation methods to compute (e.g. ['pearson', 'spearman', 'kendall']).","items":{"type":"string"},"type":["array","null"]},"sampling":{"description":"Optional seeded sampling specification object."}},"required":["input_binding","columns"],"type":"object"},"name":"stat_correlation_vif"},{"description":"Compute distributional moments, quantiles, Shapiro-Wilk/D'Agostino normality, outlier counts, and learned field traits.","inputSchema":{"$schema":"https://json-schema.org/draft/2020-12/schema","properties":{"columns":{"description":"List of numeric column names to describe and diagnose.","items":{"type":"string"},"type":"array"},"input_binding":{"description":"Dataset input binding object containing dataset_name and parquet_path."},"sampling":{"description":"Optional seeded sampling specification object."}},"required":["input_binding","columns"],"type":"object"},"name":"stat_describe_and_check"},{"description":"Execute parametric/non-parametric hypothesis tests with assumption checks, CIs, BH-FDR correction, and Simpson's paradox stratification.","inputSchema":{"$schema":"https://json-schema.org/draft/2020-12/schema","properties":{"alpha":{"description":"Significance level alpha (default 0.05).","format":"double","type":["number","null"]},"alternative":{"description":"Alternative hypothesis ('two-sided', 'less', or 'greater').","type":["string","null"]},"col_a":{"description":"First column name for paired tests.","type":["string","null"]},"col_b":{"description":"Second column name for paired tests.","type":["string","null"]},"correction":{"description":"Multiple-comparison correction method (e.g. none, bonferroni, fdr_bh).","type":["string","null"]},"group_col":{"description":"Grouping column name for two-sample or multi-group comparisons.","type":["string","null"]},"input_binding":{"description":"Dataset input binding object containing dataset_name and parquet_path."},"method":{"description":"Hypothesis test method (e.g. welch_t, mann_whitney_u, anova, kruskal_wallis, chi2_independence).","type":"string"},"sampling":{"description":"Optional seeded sampling specification object."},"segment_col":{"description":"Segment column name for multi-segment testing with multiple-comparison correction.","type":["string","null"]},"stratify_by":{"description":"Stratification column name for Simpson's paradox detection.","type":["string","null"]},"value_col":{"description":"Primary measurement or outcome column name.","type":"string"}},"required":["input_binding","method","value_col"],"type":"object"},"name":"stat_hypothesis_test"},{"description":"Compute prospective/retrospective statistical power, required sample size, or MDE.","inputSchema":{"$schema":"https://json-schema.org/draft/2020-12/schema","properties":{"alpha":{"description":"Significance level alpha (default 0.05).","format":"double","type":["number","null"]},"alternative":{"description":"Alternative hypothesis ('two-sided', 'larger', or 'smaller').","type":["string","null"]},"effect_size":{"description":"Standardized effect size (e.g. Cohen's d or f).","format":"double","type":["number","null"]},"n_per_group":{"description":"Sample size per group.","format":"uint","minimum":0,"type":["integer","null"]},"num_groups":{"description":"Number of groups for ANOVA power calculations (default 2).","format":"uint","minimum":0,"type":["integer","null"]},"p1":{"description":"Baseline proportion p1 for proportion tests.","format":"double","type":["number","null"]},"p2":{"description":"Variant proportion p2 for proportion tests.","format":"double","type":["number","null"]},"power":{"description":"Target statistical power (1 - beta), e.g. 0.80.","format":"double","type":["number","null"]},"ratio":{"description":"Group allocation ratio n2/n1 (default 1.0).","format":"double","type":["number","null"]},"solve_for":{"description":"Quantity to solve for ('sample_size', 'power', or 'effect_size').","type":"string"},"test_type":{"description":"Statistical test type (e.g. two_sample_t, two_proportion_z, one_way_anova).","type":"string"}},"required":["test_type","solve_for"],"type":"object"},"name":"stat_power_analysis"},{"description":"Fit OLS, GLM, or Huber robust regression with HC3 SEs, Breusch-Pagan, Durbin-Watson, and Cook's distance diagnostics.","inputSchema":{"$schema":"https://json-schema.org/draft/2020-12/schema","properties":{"add_intercept":{"description":"Whether to include an intercept term (default true).","type":["boolean","null"]},"feature_cols":{"description":"List of predictor/feature column names.","items":{"type":"string"},"type":"array"},"input_binding":{"description":"Dataset input binding object containing dataset_name and parquet_path."},"model_type":{"description":"Regression model family (e.g. ols, huber, glm_binomial, glm_poisson).","type":"string"},"sampling":{"description":"Optional seeded sampling specification object."},"target_col":{"description":"Dependent target column name.","type":"string"}},"required":["input_binding","model_type","target_col","feature_cols"],"type":"object"},"name":"stat_regression_fit"},{"description":"Perform STL decomposition, ADF/KPSS stationarity, ACF/PACF, spurious cross-series correlation checks, and ETS/ARIMA forecasting.","inputSchema":{"$schema":"https://json-schema.org/draft/2020-12/schema","properties":{"anomaly_z_threshold":{"description":"Optional z-score threshold for residual anomaly detection.","format":"double","type":["number","null"]},"compare_col":{"description":"Optional second series column for spurious cross-series correlation diagnostics.","type":["string","null"]},"forecast_horizon":{"description":"Optional number of future steps to forecast.","format":"uint","minimum":0,"type":["integer","null"]},"input_binding":{"description":"Dataset input binding object containing dataset_name and parquet_path."},"model":{"description":"Forecasting model family (e.g. ets, arima).","type":["string","null"]},"period":{"description":"Optional seasonal period length.","format":"uint","minimum":0,"type":["integer","null"]},"sampling":{"description":"Optional seeded sampling specification object."},"time_col":{"description":"Timestamp or sequential time index column name.","type":"string"},"value_col":{"description":"Primary time-series value column name.","type":"string"}},"required":["input_binding","time_col","value_col"],"type":"object"},"name":"stat_timeseries_analyze"},{"description":"Return zoomed-in nested Arrow schema anatomy for a dataset or side-by-side schema cards, type compatibility, Venn/Sankey overlap, and fan-out diagnostics for a join hypothesis.","inputSchema":{"$schema":"https://json-schema.org/draft/2020-12/schema","properties":{"target_id":{"description":"Canonical dataset ID or join hypothesis ID to inspect.","type":"string"},"target_kind":{"description":"Target anatomy kind: 'dataset' or 'join'.","type":"string"}},"required":["target_kind","target_id"],"type":"object"},"name":"topology_field_anatomy"},{"description":"Return a bounded multi-layer SemanticTopologyGraph (Business Concepts/Metrics -&gt; Datasets -&gt; Fields, JOINABLE_WITH, FORBIDDEN_JOIN, fan-out &amp; CONFOUNDED_BY overlays) for ./SemanticTopologyWrapper.","inputSchema":{"$schema":"https://json-schema.org/draft/2020-12/schema","properties":{"dataset_ids":{"description":"Optional list of dataset IDs to restrict the subgraph.","items":{"type":"string"},"type":["array","null"]},"epistemic_status":{"description":"Optional epistemic status filters (e.g. ['verified', 'empirically_tested']).","items":{"type":"string"},"type":["array","null"]},"focus_node_id":{"description":"Optional focus node ID for bounded ego-graph traversal.","type":["string","null"]},"hops":{"description":"Maximum ego-graph hop depth from focus_node_id.","format":"uint8","maximum":255,"minimum":0,"type":["integer","null"]},"include_fields":{"description":"Whether to include Layer 0 field nodes.","type":["boolean","null"]},"include_forbidden":{"description":"Whether to include FORBIDDEN_JOIN edges.","type":["boolean","null"]},"include_semantics":{"description":"Whether to include Layer 2 semantic concept/metric overlays.","type":["boolean","null"]},"lens":{"description":"Topology projection lens ('semantic_3layer', 'er_join', or 'lineage_overlay').","type":["string","null"]},"provenance_run_id":{"description":"Optional ProvenanceRun ID for lineage overlay highlighting.","type":["string","null"]},"source_id":{"description":"Optional source identifier filter.","type":["string","null"]}},"type":"object"},"name":"topology_graph"},{"description":"Deterministically recommend ranked Vega-Lite v5 or Apache ECharts DataVisualSpec candidates from dataset schema and profile statistics.","inputSchema":{"$schema":"https://json-schema.org/draft/2020-12/schema","properties":{"dataset_name":{"description":"Registered dataset name in the topology catalog.","type":["string","null"]},"max_recommendations":{"description":"Maximum number of ranked recommendations to return.","format":"uint","minimum":0,"type":["integer","null"]},"parquet_path":{"description":"Optional direct Parquet file path to profile and recommend visuals for.","type":["string","null"]},"renderer":{"description":"Preferred chart renderer ('vega_lite' or 'echarts').","type":["string","null"]}},"type":"object"},"name":"visual_recommend"},{"description":"Validate semantic/fan-out guardrails, execute bounded aggregation or seeded sampling with ProvenanceRun tracking, and return a canvas-ready DataVisualSpec for ./DataVisualExplorerWrapper.","inputSchema":{"$schema":"https://json-schema.org/draft/2020-12/schema","properties":{"chart_family":{"description":"Chart family identifier (e.g. bar, line, scatter, histogram).","type":["string","null"]},"data_binding":{"description":"Data binding object specifying dataset, parquet path, SQL, or query plan."},"description":{"description":"Optional chart description.","type":["string","null"]},"question":{"description":"Optional analytical question associated with the visual.","type":["string","null"]},"renderer":{"description":"Chart renderer ('vega_lite' or 'echarts').","type":["string","null"]},"sampling":{"description":"Optional seeded visual sampling specification object."},"spec":{"description":"Renderer-specific visualization specification object."},"title":{"description":"Optional human-readable chart title.","type":["string","null"]}},"required":["data_binding","spec"],"type":"object"},"name":"visual_render_spec"}]}} 
+ </msg>
+<msg time="2026-11-23T13:40:14.446281" level="INFO">${mcp_resp} = &lt;Response [200]&gt;</msg>
+<var>${mcp_resp}</var>
+<arg>${BE_BASE_URL}/api/data-engine/v1/mcp</arg>
+<arg>json=${rpc_body}</arg>
+<arg>expected_status=200</arg>
+<doc>Sends a POST request.</doc>
+<status status="PASS" start="2026-11-23T13:40:14.426409" elapsed="0.019993"/>
+</kw>
+<kw name="Set Variable" owner="BuiltIn">
+<msg time="2026-11-23T13:40:14.449406" level="INFO">${tools} = [{'description': 'List all hydrated, SHA-256-pinned built-in statistical algorithms.', 'inputSchema': {'$schema': 'https://json-schema.org/draft/2020-12/schema', 'type': 'object'}, 'name': 'algorithm_...</msg>
+<var>${tools}</var>
+<arg>${mcp_resp.json()['result']['tools']}</arg>
+<doc>Returns the given values which can then be assigned to a variable.</doc>
+<status status="PASS" start="2026-11-23T13:40:14.446911" elapsed="0.002688"/>
+</kw>
+<kw name="Create List" owner="BuiltIn">
+<msg time="2026-11-23T13:40:14.451710" level="INFO">${names} = []</msg>
+<var>${names}</var>
+<doc>Creates and returns a list containing the given items.</doc>
+<status status="PASS" start="2026-11-23T13:40:14.450140" elapsed="0.001735"/>
+</kw>
+<for flavor="IN">
+<iter>
+<kw name="Append To List" owner="Collections">
+<arg>${names}</arg>
+<arg>${t['name']}</arg>
+<doc>Adds `values` to the end of `list`.</doc>
+<status status="PASS" start="2026-11-23T13:40:14.454693" elapsed="0.003068"/>
+</kw>
+<var name="${t}">{'description': 'List all hydrated, SHA-256-pinned built-in statistical algorithms.', 'inputSchema': {'$schema': 'https://json-schema.org/draft/2020-12/schema', 'type': 'object'}, 'name': 'algorithm_b...</var>
+<status status="PASS" start="2026-11-23T13:40:14.453770" elapsed="0.004280"/>
+</iter>
+<iter>
+<kw name="Append To List" owner="Collections">
+<arg>${names}</arg>
+<arg>${t['name']}</arg>
+<doc>Adds `values` to the end of `list`.</doc>
+<status status="PASS" start="2026-11-23T13:40:14.459327" elapsed="0.001458"/>
+</kw>
+<var name="${t}">{'description': 'Health-check MCP tool returning a greeting from data-engine.', 'inputSchema': {'$schema': 'https://json-schema.org/draft/2020-12/schema', 'properties': {'name': {'description': "Optio...</var>
+<status status="PASS" start="2026-11-23T13:40:14.458711" elapsed="0.002331"/>
+</iter>
+<iter>
+<kw name="Append To List" owner="Collections">
+<arg>${names}</arg>
+<arg>${t['name']}</arg>
+<doc>Adds `values` to the end of `list`.</doc>
+<status status="PASS" start="2026-11-23T13:40:14.462245" elapsed="0.001533"/>
+</kw>
+<var name="${t}">{'description': 'Compute Pearson/Spearman/Kendall correlation matrices with FDR adjustment, partial correlations, and VIF multicollinearity diagnostics.', 'inputSchema': {'$schema': 'https://json-sche...</var>
+<status status="PASS" start="2026-11-23T13:40:14.461686" elapsed="0.002337"/>
+</iter>
+<iter>
+<kw name="Append To List" owner="Collections">
+<arg>${names}</arg>
+<arg>${t['name']}</arg>
+<doc>Adds `values` to the end of `list`.</doc>
+<status status="PASS" start="2026-11-23T13:40:14.465315" elapsed="0.001314"/>
+</kw>
+<var name="${t}">{'description': "Compute distributional moments, quantiles, Shapiro-Wilk/D'Agostino normality, outlier counts, and learned field traits.", 'inputSchema': {'$schema': 'https://json-schema.org/draft/202...</var>
+<status status="PASS" start="2026-11-23T13:40:14.464586" elapsed="0.002266"/>
+</iter>
+<iter>
+<kw name="Append To List" owner="Collections">
+<arg>${names}</arg>
+<arg>${t['name']}</arg>
+<doc>Adds `values` to the end of `list`.</doc>
+<status status="PASS" start="2026-11-23T13:40:14.468061" elapsed="0.001401"/>
+</kw>
+<var name="${t}">{'description': "Execute parametric/non-parametric hypothesis tests with assumption checks, CIs, BH-FDR correction, and Simpson's paradox stratification.", 'inputSchema': {'$schema': 'https://json-sch...</var>
+<status status="PASS" start="2026-11-23T13:40:14.467472" elapsed="0.002221"/>
+</iter>
+<iter>
+<kw name="Append To List" owner="Collections">
+<arg>${names}</arg>
+<arg>${t['name']}</arg>
+<doc>Adds `values` to the end of `list`.</doc>
+<status status="PASS" start="2026-11-23T13:40:14.470788" elapsed="0.001231"/>
+</kw>
+<var name="${t}">{'description': 'Compute prospective/retrospective statistical power, required sample size, or MDE.', 'inputSchema': {'$schema': 'https://json-schema.org/draft/2020-12/schema', 'properties': {'alpha':...</var>
+<status status="PASS" start="2026-11-23T13:40:14.470295" elapsed="0.001953"/>
+</iter>
+<iter>
+<kw name="Append To List" owner="Collections">
+<arg>${names}</arg>
+<arg>${t['name']}</arg>
+<doc>Adds `values` to the end of `list`.</doc>
+<status status="PASS" start="2026-11-23T13:40:14.473479" elapsed="0.001470"/>
+</kw>
+<var name="${t}">{'description': "Fit OLS, GLM, or Huber robust regression with HC3 SEs, Breusch-Pagan, Durbin-Watson, and Cook's distance diagnostics.", 'inputSchema': {'$schema': 'https://json-schema.org/draft/2020-...</var>
+<status status="PASS" start="2026-11-23T13:40:14.472863" elapsed="0.002315"/>
+</iter>
+<iter>
+<kw name="Append To List" owner="Collections">
+<arg>${names}</arg>
+<arg>${t['name']}</arg>
+<doc>Adds `values` to the end of `list`.</doc>
+<status status="PASS" start="2026-11-23T13:40:14.476255" elapsed="0.001190"/>
+</kw>
+<var name="${t}">{'description': 'Perform STL decomposition, ADF/KPSS stationarity, ACF/PACF, spurious cross-series correlation checks, and ETS/ARIMA forecasting.', 'inputSchema': {'$schema': 'https://json-schema.org/...</var>
+<status status="PASS" start="2026-11-23T13:40:14.475705" elapsed="0.001946"/>
+</iter>
+<iter>
+<kw name="Append To List" owner="Collections">
+<arg>${names}</arg>
+<arg>${t['name']}</arg>
+<doc>Adds `values` to the end of `list`.</doc>
+<status status="PASS" start="2026-11-23T13:40:14.478663" elapsed="0.001153"/>
+</kw>
+<var name="${t}">{'description': 'Return zoomed-in nested Arrow schema anatomy for a dataset or side-by-side schema cards, type compatibility, Venn/Sankey overlap, and fan-out diagnostics for a join hypothesis.', 'inp...</var>
+<status status="PASS" start="2026-11-23T13:40:14.478185" elapsed="0.001836"/>
+</iter>
+<iter>
+<kw name="Append To List" owner="Collections">
+<arg>${names}</arg>
+<arg>${t['name']}</arg>
+<doc>Adds `values` to the end of `list`.</doc>
+<status status="PASS" start="2026-11-23T13:40:14.480982" elapsed="0.001111"/>
+</kw>
+<var name="${t}">{'description': 'Return a bounded multi-layer SemanticTopologyGraph (Business Concepts/Metrics -&gt; Datasets -&gt; Fields, JOINABLE_WITH, FORBIDDEN_JOIN, fan-out &amp; CONFOUNDED_BY overlays) for ./SemanticTop...</var>
+<status status="PASS" start="2026-11-23T13:40:14.480503" elapsed="0.001790"/>
+</iter>
+<iter>
+<kw name="Append To List" owner="Collections">
+<arg>${names}</arg>
+<arg>${t['name']}</arg>
+<doc>Adds `values` to the end of `list`.</doc>
+<status status="PASS" start="2026-11-23T13:40:14.483233" elapsed="0.001396"/>
+</kw>
+<var name="${t}">{'description': 'Deterministically recommend ranked Vega-Lite v5 or Apache ECharts DataVisualSpec candidates from dataset schema and profile statistics.', 'inputSchema': {'$schema': 'https://json-sche...</var>
+<status status="PASS" start="2026-11-23T13:40:14.482774" elapsed="0.002196"/>
+</iter>
+<iter>
+<kw name="Append To List" owner="Collections">
+<arg>${names}</arg>
+<arg>${t['name']}</arg>
+<doc>Adds `values` to the end of `list`.</doc>
+<status status="PASS" start="2026-11-23T13:40:14.486285" elapsed="0.001359"/>
+</kw>
+<var name="${t}">{'description': 'Validate semantic/fan-out guardrails, execute bounded aggregation or seeded sampling with ProvenanceRun tracking, and return a canvas-ready DataVisualSpec for ./DataVisualExplorerWrap...</var>
+<status status="PASS" start="2026-11-23T13:40:14.485654" elapsed="0.002189"/>
+</iter>
+<var>${t}</var>
+<value>@{tools}</value>
+<status status="PASS" start="2026-11-23T13:40:14.452215" elapsed="0.035775"/>
+</for>
+<kw name="List Should Contain Value" owner="Collections">
+<arg>${names}</arg>
+<arg>visual_recommend</arg>
+<doc>Fails if the `value` is not found from `list`.</doc>
+<status status="PASS" start="2026-11-23T13:40:14.488627" elapsed="0.001890"/>
+</kw>
+<kw name="List Should Contain Value" owner="Collections">
+<arg>${names}</arg>
+<arg>visual_render_spec</arg>
+<doc>Fails if the `value` is not found from `list`.</doc>
+<status status="PASS" start="2026-11-23T13:40:14.491210" elapsed="0.000882"/>
+</kw>
+<kw name="List Should Contain Value" owner="Collections">
+<arg>${names}</arg>
+<arg>topology_graph</arg>
+<doc>Fails if the `value` is not found from `list`.</doc>
+<status status="PASS" start="2026-11-23T13:40:14.492854" elapsed="0.001548"/>
+</kw>
+<kw name="List Should Contain Value" owner="Collections">
+<arg>${names}</arg>
+<arg>topology_field_anatomy</arg>
+<doc>Fails if the `value` is not found from `list`.</doc>
+<status status="PASS" start="2026-11-23T13:40:14.495047" elapsed="0.000928"/>
+</kw>
+<doc>Verifies GET /topology/graph, /topology/anatomy/dataset/orders, /topology/mermaid, and MCP visual/topology tools.</doc>
+<tag>mcp</tag>
+<tag>spec14</tag>
+<tag>topology</tag>
+<status status="PASS" start="2026-11-23T13:40:14.322535" elapsed="0.174330"/>
+</test>
+<doc>End-to-End Robot Framework integration tests for Spec 13 (Data Visuals Engine) and Spec 14 (Semantic &amp; Structural Topology Engine).</doc>
+<status status="PASS" start="2026-11-23T13:40:13.858062" elapsed="0.640504"/>
+</suite>
+<status status="PASS" start="2026-11-23T13:40:13.133101" elapsed="1.369100"/>
+</suite>
+<status status="PASS" start="2026-11-23T13:40:12.910502" elapsed="1.594979"/>
+</suite>
+<statistics>
+<total>
+<stat pass="7" fail="0" skip="0">All Tests</stat>
+</total>
+<tag>
+<stat pass="1" fail="0" skip="0">mcp</stat>
+<stat pass="1" fail="0" skip="0">spec13</stat>
+<stat pass="1" fail="0" skip="0">spec14</stat>
+<stat pass="1" fail="0" skip="0">topology</stat>
+<stat pass="1" fail="0" skip="0">visuals</stat>
+</tag>
+<suite>
+<stat name="Robot-Tests" id="s1" pass="7" fail="0" skip="0">Robot-Tests</stat>
+<stat name="Tests" id="s1-s1" pass="7" fail="0" skip="0">Robot-Tests.Tests</stat>
+<stat name="Test Be" id="s1-s1-s1" pass="5" fail="0" skip="0">Robot-Tests.Tests.Test Be</stat>
+<stat name="Test Visuals And Topology" id="s1-s1-s2" pass="2" fail="0" skip="0">Robot-Tests.Tests.Test Visuals And Topology</stat>
+</suite>
+</statistics>
+<errors>
+</errors>
+</robot>
