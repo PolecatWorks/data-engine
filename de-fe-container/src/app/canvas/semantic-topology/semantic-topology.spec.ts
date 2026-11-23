@@ -1,4 +1,5 @@
 import { describe, expect, it, vi, afterEach } from 'vitest';
+import { DataEngineApiService } from '../../services/data-engine-api.service';
 import { mount } from './semantic-topology.wrapper';
 import { buildCytoscapeElements, defaultSemanticTopologyState } from './semantic-topology.component';
 
@@ -127,15 +128,24 @@ describe('SemanticTopologyWrapper (Spec 15)', () => {
     );
 
     // Approve & Verify steward action
-    const approveBtn = host.querySelector('[data-testid="btn-approve-join"]') as HTMLButtonElement;
-    approveBtn.click();
-    expect(onAction).toHaveBeenCalledWith(
-      'verify_join',
-      expect.objectContaining({
-        join_id: 'join_sales_orders_cust_ref_key__crm_customers_party_uuid',
-        epistemic_status: 'verified',
-      }),
-    );
+    const stewardSpy = vi
+      .spyOn(DataEngineApiService.prototype, 'stewardJoin')
+      .mockResolvedValue(undefined as never);
+    try {
+      const approveBtn = host.querySelector('[data-testid="btn-approve-join"]') as HTMLButtonElement;
+      approveBtn.click();
+      await vi.waitFor(() =>
+        expect(onAction).toHaveBeenCalledWith(
+          'verify_join',
+          expect.objectContaining({
+            join_id: 'join_sales_orders_cust_ref_key__crm_customers_party_uuid',
+            epistemic_status: 'verified',
+          }),
+        ),
+      );
+    } finally {
+      stewardSpy.mockRestore();
+    }
 
     // Explore Joined Data pivot action
     const exploreBtn = host.querySelector('[data-testid="btn-explore-joined-data"]') as HTMLButtonElement;

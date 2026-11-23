@@ -21,25 +21,27 @@ export class ConfigService {
       return this.cachedConfig;
     }
     const url = this.resolveConfigUrl(baseUrl);
-    try {
-      const response = await fetcher(url);
-      if (!response.ok) {
-        throw new Error(`HTTP ${response.status}`);
-      }
-      const parsed = (await response.json()) as Partial<DataEngineRuntimeConfig>;
-      if (!parsed.apiUrl || typeof parsed.apiUrl !== 'string') {
-        throw new Error('config.json missing required apiUrl');
-      }
-      this.cachedConfig = { apiUrl: parsed.apiUrl.replace(/\/+$/, '') };
-      return this.cachedConfig;
-    } catch {
-      this.cachedConfig = { apiUrl: '/api/data-engine/v1' };
-      return this.cachedConfig;
+    const response = await fetcher(url);
+    if (!response.ok) {
+      throw new Error(`Failed to load runtime config from ${url}: HTTP ${response.status}`);
     }
+    const parsed = (await response.json()) as Partial<DataEngineRuntimeConfig>;
+    if (!parsed || typeof parsed.apiUrl !== 'string' || parsed.apiUrl.trim().length === 0) {
+      throw new Error('Invalid runtime config: config.json missing required non-empty apiUrl');
+    }
+    const normalizedApiUrl = parsed.apiUrl.trim().replace(/\/+$/, '');
+    if (normalizedApiUrl.length === 0) {
+      throw new Error('Invalid runtime config: config.json apiUrl cannot be empty');
+    }
+    this.cachedConfig = { apiUrl: normalizedApiUrl };
+    return this.cachedConfig;
   }
 
   getApiUrlSync(): string {
-    return this.cachedConfig?.apiUrl ?? '/api/data-engine/v1';
+    if (!this.cachedConfig) {
+      throw new Error('ConfigService not initialized: loadConfig() must complete before getApiUrlSync()');
+    }
+    return this.cachedConfig.apiUrl;
   }
 
   resetForTesting(): void {
