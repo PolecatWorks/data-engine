@@ -67,16 +67,14 @@ async fn main() -> Result<(), AppError> {
                 &args.output_dir,
                 args.include_stat_traps,
             )?;
-            let out = serde_json::to_string_pretty(&manifest)
-                .map_err(crate::seeder::SeederError::from)?;
+            let out = serde_json::to_string_pretty(&manifest)?;
             println!("{}", out);
             Ok(())
         }
         Commands::HydrateBuiltins => {
             let registry = BuiltinAlgorithmRegistry::default();
             let hydrated = registry.hydrate_builtins(&config.sandbox)?;
-            let out = serde_json::to_string_pretty(&hydrated)
-                .map_err(crate::seeder::SeederError::from)?;
+            let out = serde_json::to_string_pretty(&hydrated)?;
             println!("{}", out);
             Ok(())
         }
@@ -84,8 +82,7 @@ async fn main() -> Result<(), AppError> {
             let baseline: Option<DatasetProfile> =
                 if let Some(base_path) = &args.baseline_profile_json {
                     let raw = fs::read_to_string(base_path)?;
-                    let parsed: DatasetProfile = serde_json::from_str(&raw)
-                        .map_err(crate::seeder::SeederError::from)?;
+                    let parsed: DatasetProfile = serde_json::from_str(&raw)?;
                     Some(parsed)
                 } else {
                     None
@@ -96,8 +93,7 @@ async fn main() -> Result<(), AppError> {
                 &config.profiler,
                 baseline.as_ref(),
             )?;
-            let out = serde_json::to_string_pretty(&profile)
-                .map_err(crate::seeder::SeederError::from)?;
+            let out = serde_json::to_string_pretty(&profile)?;
             println!("{}", out);
             Ok(())
         }
@@ -111,8 +107,7 @@ async fn main() -> Result<(), AppError> {
                 &args.right_field,
                 &config.compute,
             )?;
-            let out =
-                serde_json::to_string_pretty(&res).map_err(crate::seeder::SeederError::from)?;
+            let out = serde_json::to_string_pretty(&res)?;
             println!("{}", out);
             Ok(())
         }
@@ -129,8 +124,7 @@ async fn main() -> Result<(), AppError> {
                 &config.sandbox,
                 &provenance_store,
             )?;
-            let out = serde_json::to_string_pretty(&scorecard)
-                .map_err(crate::seeder::SeederError::from)?;
+            let out = serde_json::to_string_pretty(&scorecard)?;
             println!("{}", out);
             Ok(())
         }

@@ -3,40 +3,141 @@ use std::sync::Arc;
 
 use axum::extract::{Path, Query, State};
 use axum::http::StatusCode;
-use axum::response::IntoResponse;
+use axum::response::{IntoResponse, Response};
 use axum::routing::{get, post, put};
 use axum::{Json, Router};
 use serde::{Deserialize, Serialize};
+use thiserror::Error;
 use uuid::Uuid;
 
 use crate::analytics::{
-    BuiltinAlgorithmRegistry, FieldStatisticalCatalog, StatCorrelationVifRequest,
-    StatDescribeRequest, StatHypothesisTestRequest, StatPowerAnalysisRequest,
-    StatRegressionFitRequest, StatTimeseriesAnalyzeRequest, run_stat_correlation_vif,
-    run_stat_describe, run_stat_hypothesis_test, run_stat_power_analysis, run_stat_regression_fit,
+    AnalyticsError, BuiltinAlgorithmRecord, BuiltinAlgorithmRegistry, FieldStatisticalCatalog,
+    LearnedFieldTrait, StatCorrelationVifRequest, StatDescribeRequest, StatHypothesisTestRequest,
+    StatPowerAnalysisRequest, StatRegressionFitRequest, StatTimeseriesAnalyzeRequest,
+    StatisticalResultEnvelope, run_stat_correlation_vif, run_stat_describe,
+    run_stat_hypothesis_test, run_stat_power_analysis, run_stat_regression_fit,
     run_stat_timeseries_analyze,
 };
-use crate::benchmark::{run_ablation_benchmark, run_statistical_traps_benchmark};
-use crate::config::AppConfig;
-use crate::join_probe::probe_join;
-use crate::mcp::server::DataEngineMcpServer;
-use crate::profiler::{DatasetProfile, profile_parquet_dataset};
-use crate::provenance::ProvenanceStore;
-use crate::query_engine::{SemanticQueryPlan, execute_query_plan, validate_query_plan};
-use crate::sandbox::{
-    PythonAlgorithmExecuteRequest, PythonAlgorithmValidationRequest, execute_python_algorithm,
-    validate_python_algorithm,
+use crate::benchmark::{
+    AblationScorecard, BenchmarkError, StatisticalTrapsScorecard, run_ablation_benchmark,
+    run_statistical_traps_benchmark,
 };
-use crate::seeder::seed_validation_suite_with_options;
+use crate::config::AppConfig;
+use crate::join_probe::{JoinProbeError, JoinProbeResult, probe_join};
+use crate::mcp::server::DataEngineMcpServer;
+use crate::profiler::{DatasetProfile, ProfilerError, profile_parquet_dataset};
+use crate::provenance::{ProvenanceError, ProvenanceRun, ProvenanceStore};
+use crate::query_engine::{
+    QueryEngineError, QueryExecutionResult, QueryValidationResult, SemanticQueryPlan,
+    execute_query_plan, validate_query_plan,
+};
+use crate::sandbox::{
+    PythonAlgorithmExecuteRequest, PythonAlgorithmExecuteResult,
+    PythonAlgorithmValidationRequest, PythonAlgorithmValidationResult, SandboxError,
+    execute_python_algorithm, validate_python_algorithm,
+};
+use crate::seeder::{GroundTruthManifest, SeederError, seed_validation_suite_with_options};
 use crate::topology::{
-    JoinStewardUpdateRequest, TopologyCatalog, TopologyGraphQuery, build_dataset_anatomy,
-    build_join_anatomy, build_topology_graph, export_topology_mermaid,
+    CatalogDatasetRecord, DatasetAnatomyResponse, JoinAnatomyResponse, JoinHypothesisRecord,
+    JoinStewardUpdateRequest, SemanticTopologyGraph, TopologyCatalog, TopologyGraphQuery,
+    TopologyMermaidResponse, build_dataset_anatomy, build_join_anatomy, build_topology_graph,
+    export_topology_mermaid,
 };
 use crate::visuals::{
-    SavedVisualCreateRequest, SavedVisualStore, SavedVisualUpdateRequest, VisualQueryRequest,
-    VisualRecommendRequest, VisualsError, execute_visual_query, recommend_visuals,
-    recommend_visuals_from_parquet,
+    SavedVisualCreateRequest, SavedVisualRecord, SavedVisualStore, SavedVisualUpdateRequest,
+    VisualQueryRequest, VisualQueryResponse, VisualRecommendRequest, VisualRecommendResponse,
+    VisualsError, execute_visual_query, recommend_visuals, recommend_visuals_from_parquet,
 };
+
+#[derive(Debug, Error)]
+pub enum ApiError {
+    #[error(transparent)]
+    Profiler(#[from] ProfilerError),
+
+    #[error(transparent)]
+    JoinProbe(#[from] JoinProbeError),
+
+    #[error(transparent)]
+    QueryEngine(#[from] QueryEngineError),
+
+    #[error(transparent)]
+    Provenance(#[from] ProvenanceError),
+
+    #[error(transparent)]
+    Sandbox(#[from] SandboxError),
+
+    #[error(transparent)]
+    Seeder(#[from] SeederError),
+
+    #[error(transparent)]
+    Benchmark(#[from] BenchmarkError),
+
+    #[error(transparent)]
+    Analytics(#[from] AnalyticsError),
+
+    #[error(transparent)]
+    Visuals(#[from] VisualsError),
+
+    #[error("{0}")]
+    NotFound(String),
+}
+
+fn map_analytics_error_status(err: &AnalyticsError) -> StatusCode {
+    match err {
+        AnalyticsError::InvalidRequest(_) | AnalyticsError::Sandbox(_) => StatusCode::BAD_REQUEST,
+        AnalyticsError::Provenance(ProvenanceError::NotFound(_)) => StatusCode::NOT_FOUND,
+        AnalyticsError::Provenance(ProvenanceError::LockPoisoned)
+        | AnalyticsError::LockPoisoned
+        | AnalyticsError::MalformedSandboxOutput { .. } => StatusCode::INTERNAL_SERVER_ERROR,
+    }
+}
+
+fn map_visuals_error_status(err: &VisualsError) -> StatusCode {
+    match err {
+        VisualsError::VisualNotFound(_) | VisualsError::TopologyFocusNotFound(_) => {
+            StatusCode::NOT_FOUND
+        }
+        VisualsError::ChartPointLimitExceeded { .. }
+        | VisualsError::InvalidVisualSpec(_)
+        | VisualsError::UnsupportedRenderer(_)
+        | VisualsError::ForbiddenJoinBlocked(_)
+        | VisualsError::FanOutTrapBlocked(_)
+        | VisualsError::InvalidBinding(_) => StatusCode::BAD_REQUEST,
+        _ => StatusCode::INTERNAL_SERVER_ERROR,
+    }
+}
+
+impl ApiError {
+    pub fn status_code(&self) -> StatusCode {
+        match self {
+            ApiError::Profiler(_)
+            | ApiError::JoinProbe(_)
+            | ApiError::Sandbox(_)
+            | ApiError::Seeder(_)
+            | ApiError::Benchmark(_) => StatusCode::BAD_REQUEST,
+            ApiError::QueryEngine(QueryEngineError::Provenance(ProvenanceError::NotFound(_))) => {
+                StatusCode::NOT_FOUND
+            }
+            ApiError::QueryEngine(_) => StatusCode::BAD_REQUEST,
+            ApiError::Provenance(ProvenanceError::NotFound(_)) | ApiError::NotFound(_) => {
+                StatusCode::NOT_FOUND
+            }
+            ApiError::Provenance(ProvenanceError::LockPoisoned) => {
+                StatusCode::INTERNAL_SERVER_ERROR
+            }
+            ApiError::Analytics(err) => map_analytics_error_status(err),
+            ApiError::Visuals(err) => map_visuals_error_status(err),
+        }
+    }
+}
+
+impl IntoResponse for ApiError {
+    fn into_response(self) -> Response {
+        let status = self.status_code();
+        let body = serde_json::json!({ "error": self.to_string() });
+        (status, Json(body)).into_response()
+    }
+}
 
 #[derive(Clone)]
 pub struct AppState {
@@ -100,6 +201,39 @@ pub struct SavedVisualListQuery {
     pub dataset_id: Option<String>,
     pub chart_family: Option<String>,
     pub q: Option<String>,
+}
+
+#[derive(Debug, Serialize)]
+pub struct AlgorithmsListResponse {
+    pub algorithms: Vec<BuiltinAlgorithmRecord>,
+}
+
+#[derive(Debug, Serialize)]
+pub struct FieldsListResponse {
+    pub fields: Vec<LearnedFieldTrait>,
+}
+
+#[derive(Debug, Serialize)]
+pub struct DatasetsListResponse {
+    pub datasets: Vec<CatalogDatasetRecord>,
+}
+
+#[derive(Debug, Serialize)]
+pub struct JoinsListResponse {
+    pub join_hypotheses: Vec<JoinHypothesisRecord>,
+}
+
+#[derive(Debug, Serialize)]
+pub struct SavedVisualsListResponse {
+    pub visuals: Vec<SavedVisualRecord>,
+}
+
+#[derive(Debug, Serialize)]
+pub struct BenchmarkRunResponse {
+    #[serde(flatten)]
+    pub scorecard: AblationScorecard,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub statistical_traps: Option<StatisticalTrapsScorecard>,
 }
 
 #[derive(Debug, Deserialize)]
@@ -239,73 +373,51 @@ async fn health_handler(State(state): State<AppState>) -> Json<HealthResponse> {
 async fn seed_handler(
     State(state): State<AppState>,
     Json(req): Json<SeedRequest>,
-) -> impl IntoResponse {
+) -> Result<Json<GroundTruthManifest>, ApiError> {
     let seed = req.seed.unwrap_or(state.config.seeder.default_seed);
     let row_count = req
         .row_count
         .unwrap_or(state.config.seeder.default_row_count);
     let out_dir = PathBuf::from(req.output_dir);
 
-    match seed_validation_suite_with_options(seed, row_count, &out_dir, req.include_stat_traps) {
-        Ok(manifest) => (
-            StatusCode::OK,
-            Json(serde_json::to_value(manifest).unwrap_or_default()),
-        ),
-        Err(err) => (
-            StatusCode::BAD_REQUEST,
-            Json(serde_json::json!({ "error": err.to_string() })),
-        ),
-    }
+    let manifest =
+        seed_validation_suite_with_options(seed, row_count, &out_dir, req.include_stat_traps)?;
+    Ok(Json(manifest))
 }
 
 async fn profile_handler(
     State(state): State<AppState>,
     Json(req): Json<ProfileRequest>,
-) -> impl IntoResponse {
+) -> Result<Json<DatasetProfile>, ApiError> {
     let parquet_path = PathBuf::from(&req.parquet_path);
-    match profile_parquet_dataset(
+    let profile = profile_parquet_dataset(
         &req.dataset_name,
         &parquet_path,
         &state.config.profiler,
         req.baseline_profile.as_ref(),
-    ) {
-        Ok(profile) => {
-            let source_name = req
-                .source_name
-                .unwrap_or_else(|| "local_parquet".to_string());
-            let grain = req
-                .grain_description
-                .unwrap_or_else(|| format!("1 row per {} record", req.dataset_name));
-            if let Err(err) = state.topology_catalog.upsert_dataset(
-                source_name,
-                grain,
-                Some(req.parquet_path),
-                profile.clone(),
-            ) {
-                return (
-                    map_visuals_error_status(&err),
-                    Json(serde_json::json!({ "error": err.to_string() })),
-                );
-            }
-            (
-                StatusCode::OK,
-                Json(serde_json::to_value(profile).unwrap_or_default()),
-            )
-        }
-        Err(err) => (
-            StatusCode::BAD_REQUEST,
-            Json(serde_json::json!({ "error": err.to_string() })),
-        ),
-    }
+    )?;
+    let source_name = req
+        .source_name
+        .unwrap_or_else(|| "local_parquet".to_string());
+    let grain = req
+        .grain_description
+        .unwrap_or_else(|| format!("1 row per {} record", req.dataset_name));
+    state.topology_catalog.upsert_dataset(
+        source_name,
+        grain,
+        Some(req.parquet_path),
+        profile.clone(),
+    )?;
+    Ok(Json(profile))
 }
 
 async fn join_probe_handler(
     State(state): State<AppState>,
     Json(req): Json<JoinProbeRequest>,
-) -> impl IntoResponse {
+) -> Result<Json<JoinProbeResult>, ApiError> {
     let left_path = PathBuf::from(&req.left_parquet);
     let right_path = PathBuf::from(&req.right_parquet);
-    match probe_join(
+    let res = probe_join(
         &req.left_dataset,
         &left_path,
         &req.left_field,
@@ -313,307 +425,180 @@ async fn join_probe_handler(
         &right_path,
         &req.right_field,
         &state.config.compute,
-    ) {
-        Ok(res) => {
-            if let Err(err) = state
-                .topology_catalog
-                .upsert_join_probe(res.clone(), None, None)
-            {
-                return (
-                    map_visuals_error_status(&err),
-                    Json(serde_json::json!({ "error": err.to_string() })),
-                );
-            }
-            (
-                StatusCode::OK,
-                Json(serde_json::to_value(res).unwrap_or_default()),
-            )
-        }
-        Err(err) => (
-            StatusCode::BAD_REQUEST,
-            Json(serde_json::json!({ "error": err.to_string() })),
-        ),
-    }
+    )?;
+    state
+        .topology_catalog
+        .upsert_join_probe(res.clone(), None, None)?;
+    Ok(Json(res))
 }
 
-async fn query_validate_handler(Json(plan): Json<SemanticQueryPlan>) -> impl IntoResponse {
-    let res = validate_query_plan(&plan);
-    (
-        StatusCode::OK,
-        Json(serde_json::to_value(res).unwrap_or_default()),
-    )
+async fn query_validate_handler(Json(plan): Json<SemanticQueryPlan>) -> Json<QueryValidationResult> {
+    Json(validate_query_plan(&plan))
 }
 
 async fn query_execute_handler(
     State(state): State<AppState>,
     Json(plan): Json<SemanticQueryPlan>,
-) -> impl IntoResponse {
-    match execute_query_plan(&plan, &state.provenance_store) {
-        Ok(res) => (
-            StatusCode::OK,
-            Json(serde_json::to_value(res).unwrap_or_default()),
-        ),
-        Err(err) => (
-            StatusCode::BAD_REQUEST,
-            Json(serde_json::json!({ "error": err.to_string() })),
-        ),
-    }
+) -> Result<Json<QueryExecutionResult>, ApiError> {
+    let res = execute_query_plan(&plan, &state.provenance_store)?;
+    Ok(Json(res))
 }
 
-async fn algorithms_list_handler(State(state): State<AppState>) -> impl IntoResponse {
-    match state.algorithm_registry.list() {
-        Ok(items) => (
-            StatusCode::OK,
-            Json(serde_json::json!({ "algorithms": items })),
-        ),
-        Err(err) => (
-            StatusCode::INTERNAL_SERVER_ERROR,
-            Json(serde_json::json!({ "error": err.to_string() })),
-        ),
-    }
+async fn algorithms_list_handler(
+    State(state): State<AppState>,
+) -> Result<Json<AlgorithmsListResponse>, ApiError> {
+    let algorithms = state.algorithm_registry.list()?;
+    Ok(Json(AlgorithmsListResponse { algorithms }))
 }
 
 async fn algorithm_validate_handler(
     State(state): State<AppState>,
     Json(req): Json<PythonAlgorithmValidationRequest>,
-) -> impl IntoResponse {
-    match validate_python_algorithm(&req, &state.config.sandbox) {
-        Ok(res) => (
-            StatusCode::OK,
-            Json(serde_json::to_value(res).unwrap_or_default()),
-        ),
-        Err(err) => (
-            StatusCode::BAD_REQUEST,
-            Json(serde_json::json!({ "error": err.to_string() })),
-        ),
-    }
+) -> Result<Json<PythonAlgorithmValidationResult>, ApiError> {
+    let res = validate_python_algorithm(&req, &state.config.sandbox)?;
+    Ok(Json(res))
 }
 
 async fn algorithm_execute_handler(
     State(state): State<AppState>,
     Json(req): Json<PythonAlgorithmExecuteRequest>,
-) -> impl IntoResponse {
-    match execute_python_algorithm(&req, &state.config.sandbox, &state.provenance_store) {
-        Ok(res) => (
-            StatusCode::OK,
-            Json(serde_json::to_value(res).unwrap_or_default()),
-        ),
-        Err(err) => (
-            StatusCode::BAD_REQUEST,
-            Json(serde_json::json!({ "error": err.to_string() })),
-        ),
-    }
+) -> Result<Json<PythonAlgorithmExecuteResult>, ApiError> {
+    let res = execute_python_algorithm(&req, &state.config.sandbox, &state.provenance_store)?;
+    Ok(Json(res))
 }
 
-async fn fields_list_handler(State(state): State<AppState>) -> impl IntoResponse {
-    match state.field_catalog.list() {
-        Ok(items) => (StatusCode::OK, Json(serde_json::json!({ "fields": items }))),
-        Err(err) => (
-            StatusCode::INTERNAL_SERVER_ERROR,
-            Json(serde_json::json!({ "error": err.to_string() })),
-        ),
-    }
+async fn fields_list_handler(
+    State(state): State<AppState>,
+) -> Result<Json<FieldsListResponse>, ApiError> {
+    let fields = state.field_catalog.list()?;
+    Ok(Json(FieldsListResponse { fields }))
 }
 
 async fn field_get_handler(
     State(state): State<AppState>,
     Path(canonical_id): Path<String>,
-) -> impl IntoResponse {
-    match state.field_catalog.get(&canonical_id) {
-        Ok(Some(item)) => (
-            StatusCode::OK,
-            Json(serde_json::to_value(item).unwrap_or_default()),
-        ),
-        Ok(None) => (
-            StatusCode::NOT_FOUND,
-            Json(serde_json::json!({ "error": format!("field '{}' not found", canonical_id) })),
-        ),
-        Err(err) => (
-            StatusCode::INTERNAL_SERVER_ERROR,
-            Json(serde_json::json!({ "error": err.to_string() })),
-        ),
-    }
+) -> Result<Json<LearnedFieldTrait>, ApiError> {
+    let item = state
+        .field_catalog
+        .get(&canonical_id)?
+        .ok_or_else(|| ApiError::NotFound(format!("field '{}' not found", canonical_id)))?;
+    Ok(Json(item))
 }
 
 async fn field_verify_handler(
     State(state): State<AppState>,
     Path(canonical_id): Path<String>,
     Json(req): Json<FieldVerifyRequest>,
-) -> impl IntoResponse {
-    match state.field_catalog.verify_trait(
-        &canonical_id,
-        &req.verified_by,
-        req.recommended_test_family,
-        req.known_confounders,
-    ) {
-        Ok(Some(updated)) => (
-            StatusCode::OK,
-            Json(serde_json::to_value(updated).unwrap_or_default()),
-        ),
-        Ok(None) => (
-            StatusCode::NOT_FOUND,
-            Json(serde_json::json!({ "error": format!("field '{}' not found", canonical_id) })),
-        ),
-        Err(err) => (
-            StatusCode::INTERNAL_SERVER_ERROR,
-            Json(serde_json::json!({ "error": err.to_string() })),
-        ),
-    }
+) -> Result<Json<LearnedFieldTrait>, ApiError> {
+    let updated = state
+        .field_catalog
+        .verify_trait(
+            &canonical_id,
+            &req.verified_by,
+            req.recommended_test_family,
+            req.known_confounders,
+        )?
+        .ok_or_else(|| ApiError::NotFound(format!("field '{}' not found", canonical_id)))?;
+    Ok(Json(updated))
 }
 
 async fn stat_describe_handler(
     State(state): State<AppState>,
     Json(req): Json<StatDescribeRequest>,
-) -> impl IntoResponse {
-    match run_stat_describe(
+) -> Result<Json<StatisticalResultEnvelope>, ApiError> {
+    let env = run_stat_describe(
         &req,
         &state.config.sandbox,
         &state.provenance_store,
         &state.field_catalog,
-    ) {
-        Ok(env) => (
-            StatusCode::OK,
-            Json(serde_json::to_value(env).unwrap_or_default()),
-        ),
-        Err(err) => (
-            StatusCode::BAD_REQUEST,
-            Json(serde_json::json!({ "error": err.to_string() })),
-        ),
-    }
+    )?;
+    Ok(Json(env))
 }
 
 async fn stat_hypothesis_test_handler(
     State(state): State<AppState>,
     Json(req): Json<StatHypothesisTestRequest>,
-) -> impl IntoResponse {
-    match run_stat_hypothesis_test(
+) -> Result<Json<StatisticalResultEnvelope>, ApiError> {
+    let env = run_stat_hypothesis_test(
         &req,
         &state.config.sandbox,
         &state.provenance_store,
         &state.field_catalog,
-    ) {
-        Ok(env) => (
-            StatusCode::OK,
-            Json(serde_json::to_value(env).unwrap_or_default()),
-        ),
-        Err(err) => (
-            StatusCode::BAD_REQUEST,
-            Json(serde_json::json!({ "error": err.to_string() })),
-        ),
-    }
+    )?;
+    Ok(Json(env))
 }
 
 async fn stat_power_handler(
     State(state): State<AppState>,
     Json(req): Json<StatPowerAnalysisRequest>,
-) -> impl IntoResponse {
-    match run_stat_power_analysis(
+) -> Result<Json<StatisticalResultEnvelope>, ApiError> {
+    let env = run_stat_power_analysis(
         &req,
         &state.config.sandbox,
         &state.provenance_store,
         &state.field_catalog,
-    ) {
-        Ok(env) => (
-            StatusCode::OK,
-            Json(serde_json::to_value(env).unwrap_or_default()),
-        ),
-        Err(err) => (
-            StatusCode::BAD_REQUEST,
-            Json(serde_json::json!({ "error": err.to_string() })),
-        ),
-    }
+    )?;
+    Ok(Json(env))
 }
 
 async fn stat_correlation_handler(
     State(state): State<AppState>,
     Json(req): Json<StatCorrelationVifRequest>,
-) -> impl IntoResponse {
-    match run_stat_correlation_vif(
+) -> Result<Json<StatisticalResultEnvelope>, ApiError> {
+    let env = run_stat_correlation_vif(
         &req,
         &state.config.sandbox,
         &state.provenance_store,
         &state.field_catalog,
-    ) {
-        Ok(env) => (
-            StatusCode::OK,
-            Json(serde_json::to_value(env).unwrap_or_default()),
-        ),
-        Err(err) => (
-            StatusCode::BAD_REQUEST,
-            Json(serde_json::json!({ "error": err.to_string() })),
-        ),
-    }
+    )?;
+    Ok(Json(env))
 }
 
 async fn stat_regression_handler(
     State(state): State<AppState>,
     Json(req): Json<StatRegressionFitRequest>,
-) -> impl IntoResponse {
-    match run_stat_regression_fit(
+) -> Result<Json<StatisticalResultEnvelope>, ApiError> {
+    let env = run_stat_regression_fit(
         &req,
         &state.config.sandbox,
         &state.provenance_store,
         &state.field_catalog,
-    ) {
-        Ok(env) => (
-            StatusCode::OK,
-            Json(serde_json::to_value(env).unwrap_or_default()),
-        ),
-        Err(err) => (
-            StatusCode::BAD_REQUEST,
-            Json(serde_json::json!({ "error": err.to_string() })),
-        ),
-    }
+    )?;
+    Ok(Json(env))
 }
 
 async fn stat_timeseries_handler(
     State(state): State<AppState>,
     Json(req): Json<StatTimeseriesAnalyzeRequest>,
-) -> impl IntoResponse {
-    match run_stat_timeseries_analyze(
+) -> Result<Json<StatisticalResultEnvelope>, ApiError> {
+    let env = run_stat_timeseries_analyze(
         &req,
         &state.config.sandbox,
         &state.provenance_store,
         &state.field_catalog,
-    ) {
-        Ok(env) => (
-            StatusCode::OK,
-            Json(serde_json::to_value(env).unwrap_or_default()),
-        ),
-        Err(err) => (
-            StatusCode::BAD_REQUEST,
-            Json(serde_json::json!({ "error": err.to_string() })),
-        ),
-    }
+    )?;
+    Ok(Json(env))
 }
 
 async fn provenance_read_handler(
     State(state): State<AppState>,
     Path(id): Path<String>,
-) -> impl IntoResponse {
-    match state.provenance_store.get_run(&id) {
-        Ok(run) => (
-            StatusCode::OK,
-            Json(serde_json::to_value(run).unwrap_or_default()),
-        ),
-        Err(err) => (
-            StatusCode::NOT_FOUND,
-            Json(serde_json::json!({ "error": err.to_string() })),
-        ),
-    }
+) -> Result<Json<ProvenanceRun>, ApiError> {
+    let run = state.provenance_store.get_run(&id)?;
+    Ok(Json(run))
 }
 
 async fn benchmark_run_handler(
     State(state): State<AppState>,
     Json(req): Json<SeedRequest>,
-) -> impl IntoResponse {
+) -> Result<Json<BenchmarkRunResponse>, ApiError> {
     let seed = req.seed.unwrap_or(state.config.seeder.default_seed);
     let row_count = req
         .row_count
         .unwrap_or(state.config.seeder.default_row_count);
     let out_dir = PathBuf::from(req.output_dir);
 
-    match run_ablation_benchmark(
+    let scorecard = run_ablation_benchmark(
         seed,
         row_count,
         &out_dir,
@@ -621,109 +606,52 @@ async fn benchmark_run_handler(
         &state.config.compute,
         &state.config.sandbox,
         &state.provenance_store,
-    ) {
-        Ok(scorecard) => {
-            let mut val = serde_json::to_value(scorecard).unwrap_or_default();
-            if req.include_stat_traps {
-                match run_statistical_traps_benchmark(
-                    seed,
-                    &out_dir,
-                    &state.config.sandbox,
-                    &state.provenance_store,
-                ) {
-                    Ok(stat_card) => {
-                        if let Some(obj) = val.as_object_mut() {
-                            obj.insert(
-                                "statistical_traps".to_string(),
-                                serde_json::to_value(stat_card).unwrap_or_default(),
-                            );
-                        }
-                    }
-                    Err(err) => {
-                        return (
-                            StatusCode::BAD_REQUEST,
-                            Json(serde_json::json!({ "error": err.to_string() })),
-                        );
-                    }
-                }
-            }
-            (StatusCode::OK, Json(val))
-        }
-        Err(err) => (
-            StatusCode::BAD_REQUEST,
-            Json(serde_json::json!({ "error": err.to_string() })),
-        ),
-    }
+    )?;
+
+    let statistical_traps = if req.include_stat_traps {
+        Some(run_statistical_traps_benchmark(
+            seed,
+            &out_dir,
+            &state.config.sandbox,
+            &state.provenance_store,
+        )?)
+    } else {
+        None
+    };
+
+    Ok(Json(BenchmarkRunResponse {
+        scorecard,
+        statistical_traps,
+    }))
 }
 
-fn map_visuals_error_status(err: &VisualsError) -> StatusCode {
-    match err {
-        VisualsError::VisualNotFound(_) | VisualsError::TopologyFocusNotFound(_) => {
-            StatusCode::NOT_FOUND
-        }
-        VisualsError::ChartPointLimitExceeded { .. }
-        | VisualsError::InvalidVisualSpec(_)
-        | VisualsError::UnsupportedRenderer(_)
-        | VisualsError::ForbiddenJoinBlocked(_)
-        | VisualsError::FanOutTrapBlocked(_)
-        | VisualsError::InvalidBinding(_) => StatusCode::BAD_REQUEST,
-        _ => StatusCode::INTERNAL_SERVER_ERROR,
-    }
+async fn datasets_list_handler(
+    State(state): State<AppState>,
+) -> Result<Json<DatasetsListResponse>, ApiError> {
+    let datasets = state.topology_catalog.list_datasets()?;
+    Ok(Json(DatasetsListResponse { datasets }))
 }
 
-async fn datasets_list_handler(State(state): State<AppState>) -> impl IntoResponse {
-    match state.topology_catalog.list_datasets() {
-        Ok(items) => (
-            StatusCode::OK,
-            Json(serde_json::json!({ "datasets": items })),
-        )
-            .into_response(),
-        Err(err) => (
-            map_visuals_error_status(&err),
-            Json(serde_json::json!({ "error": err.to_string() })),
-        )
-            .into_response(),
-    }
-}
-
-async fn joins_list_handler(State(state): State<AppState>) -> impl IntoResponse {
-    match state.topology_catalog.list_joins() {
-        Ok(items) => (
-            StatusCode::OK,
-            Json(serde_json::json!({ "join_hypotheses": items })),
-        )
-            .into_response(),
-        Err(err) => (
-            map_visuals_error_status(&err),
-            Json(serde_json::json!({ "error": err.to_string() })),
-        )
-            .into_response(),
-    }
+async fn joins_list_handler(
+    State(state): State<AppState>,
+) -> Result<Json<JoinsListResponse>, ApiError> {
+    let join_hypotheses = state.topology_catalog.list_joins()?;
+    Ok(Json(JoinsListResponse { join_hypotheses }))
 }
 
 async fn join_steward_handler(
     State(state): State<AppState>,
     Path(id): Path<String>,
     Json(req): Json<JoinStewardUpdateRequest>,
-) -> impl IntoResponse {
-    match state.topology_catalog.steward_join(&id, req) {
-        Ok(rec) => (
-            StatusCode::OK,
-            Json(serde_json::to_value(rec).unwrap_or_default()),
-        )
-            .into_response(),
-        Err(err) => (
-            map_visuals_error_status(&err),
-            Json(serde_json::json!({ "error": err.to_string() })),
-        )
-            .into_response(),
-    }
+) -> Result<Json<JoinHypothesisRecord>, ApiError> {
+    let rec = state.topology_catalog.steward_join(&id, req)?;
+    Ok(Json(rec))
 }
 
 pub(crate) fn execute_visual_recommend_inner(
     state: &AppState,
     req: &VisualRecommendRequest,
-) -> Result<crate::visuals::VisualRecommendResponse, VisualsError> {
+) -> Result<VisualRecommendResponse, VisualsError> {
     let mut resp = if let Some(ref prof) = req.profile {
         recommend_visuals(
             prof,
@@ -772,25 +700,15 @@ pub(crate) fn execute_visual_recommend_inner(
 async fn visual_recommend_handler(
     State(state): State<AppState>,
     Json(req): Json<VisualRecommendRequest>,
-) -> impl IntoResponse {
-    match execute_visual_recommend_inner(&state, &req) {
-        Ok(resp) => (
-            StatusCode::OK,
-            Json(serde_json::to_value(resp).unwrap_or_default()),
-        )
-            .into_response(),
-        Err(err) => (
-            map_visuals_error_status(&err),
-            Json(serde_json::json!({ "error": err.to_string() })),
-        )
-            .into_response(),
-    }
+) -> Result<Json<VisualRecommendResponse>, ApiError> {
+    let resp = execute_visual_recommend_inner(&state, &req)?;
+    Ok(Json(resp))
 }
 
 pub(crate) fn execute_visual_query_inner(
     state: &AppState,
     req: &VisualQueryRequest,
-) -> Result<crate::visuals::VisualQueryResponse, VisualsError> {
+) -> Result<VisualQueryResponse, VisualsError> {
     let resolved_path = if req.data_binding.parquet_path.is_none() {
         if let Some(id) = req.data_binding.dataset_id.as_deref() {
             state
@@ -816,203 +734,102 @@ pub(crate) fn execute_visual_query_inner(
 async fn visual_query_handler(
     State(state): State<AppState>,
     Json(req): Json<VisualQueryRequest>,
-) -> impl IntoResponse {
-    match execute_visual_query_inner(&state, &req) {
-        Ok(resp) => (
-            StatusCode::OK,
-            Json(serde_json::to_value(resp).unwrap_or_default()),
-        )
-            .into_response(),
-        Err(err) => (
-            map_visuals_error_status(&err),
-            Json(serde_json::json!({ "error": err.to_string() })),
-        )
-            .into_response(),
-    }
+) -> Result<Json<VisualQueryResponse>, ApiError> {
+    let resp = execute_visual_query_inner(&state, &req)?;
+    Ok(Json(resp))
 }
 
 async fn saved_visuals_list_handler(
     State(state): State<AppState>,
     Query(q): Query<SavedVisualListQuery>,
-) -> impl IntoResponse {
-    match state.saved_visuals.list(
+) -> Result<Json<SavedVisualsListResponse>, ApiError> {
+    let visuals = state.saved_visuals.list(
         q.dataset_id.as_deref(),
         q.chart_family.as_deref(),
         q.q.as_deref(),
-    ) {
-        Ok(items) => (
-            StatusCode::OK,
-            Json(serde_json::json!({ "visuals": items })),
-        )
-            .into_response(),
-        Err(err) => (
-            map_visuals_error_status(&err),
-            Json(serde_json::json!({ "error": err.to_string() })),
-        )
-            .into_response(),
-    }
+    )?;
+    Ok(Json(SavedVisualsListResponse { visuals }))
 }
 
 async fn saved_visuals_create_handler(
     State(state): State<AppState>,
     Json(req): Json<SavedVisualCreateRequest>,
-) -> impl IntoResponse {
-    match state.saved_visuals.create(req) {
-        Ok(rec) => (
-            StatusCode::CREATED,
-            Json(serde_json::to_value(rec).unwrap_or_default()),
-        )
-            .into_response(),
-        Err(err) => (
-            map_visuals_error_status(&err),
-            Json(serde_json::json!({ "error": err.to_string() })),
-        )
-            .into_response(),
-    }
+) -> Result<(StatusCode, Json<SavedVisualRecord>), ApiError> {
+    let rec = state.saved_visuals.create(req)?;
+    Ok((StatusCode::CREATED, Json(rec)))
 }
 
 async fn saved_visuals_get_handler(
     State(state): State<AppState>,
     Path(id): Path<Uuid>,
-) -> impl IntoResponse {
-    match state.saved_visuals.get(id) {
-        Ok(rec) => (
-            StatusCode::OK,
-            Json(serde_json::to_value(rec).unwrap_or_default()),
-        )
-            .into_response(),
-        Err(err) => (
-            map_visuals_error_status(&err),
-            Json(serde_json::json!({ "error": err.to_string() })),
-        )
-            .into_response(),
-    }
+) -> Result<Json<SavedVisualRecord>, ApiError> {
+    let rec = state.saved_visuals.get(id)?;
+    Ok(Json(rec))
 }
 
 async fn saved_visuals_update_handler(
     State(state): State<AppState>,
     Path(id): Path<Uuid>,
     Json(req): Json<SavedVisualUpdateRequest>,
-) -> impl IntoResponse {
-    match state.saved_visuals.update(id, req) {
-        Ok(rec) => (
-            StatusCode::OK,
-            Json(serde_json::to_value(rec).unwrap_or_default()),
-        )
-            .into_response(),
-        Err(err) => (
-            map_visuals_error_status(&err),
-            Json(serde_json::json!({ "error": err.to_string() })),
-        )
-            .into_response(),
-    }
+) -> Result<Json<SavedVisualRecord>, ApiError> {
+    let rec = state.saved_visuals.update(id, req)?;
+    Ok(Json(rec))
 }
 
 async fn saved_visuals_delete_handler(
     State(state): State<AppState>,
     Path(id): Path<Uuid>,
-) -> impl IntoResponse {
-    match state.saved_visuals.delete(id) {
-        Ok(()) => StatusCode::NO_CONTENT.into_response(),
-        Err(err) => (
-            map_visuals_error_status(&err),
-            Json(serde_json::json!({ "error": err.to_string() })),
-        )
-            .into_response(),
-    }
+) -> Result<StatusCode, ApiError> {
+    state.saved_visuals.delete(id)?;
+    Ok(StatusCode::NO_CONTENT)
 }
 
 async fn topology_graph_handler(
     State(state): State<AppState>,
     Query(query): Query<TopologyHttpQuery>,
-) -> impl IntoResponse {
+) -> Result<Json<SemanticTopologyGraph>, ApiError> {
     let q: TopologyGraphQuery = query.into();
-    match build_topology_graph(
+    let graph = build_topology_graph(
         &state.topology_catalog,
         &state.field_catalog,
         &state.provenance_store,
         &state.config.visuals,
         &q,
     )
-    .await
-    {
-        Ok(graph) => (
-            StatusCode::OK,
-            Json(serde_json::to_value(graph).unwrap_or_default()),
-        )
-            .into_response(),
-        Err(err) => (
-            map_visuals_error_status(&err),
-            Json(serde_json::json!({ "error": err.to_string() })),
-        )
-            .into_response(),
-    }
+    .await?;
+    Ok(Json(graph))
 }
 
 async fn topology_dataset_anatomy_handler(
     State(state): State<AppState>,
     Path(id): Path<String>,
-) -> impl IntoResponse {
-    match build_dataset_anatomy(&id, &state.topology_catalog, &state.field_catalog) {
-        Ok(anatomy) => (
-            StatusCode::OK,
-            Json(serde_json::to_value(anatomy).unwrap_or_default()),
-        )
-            .into_response(),
-        Err(err) => (
-            map_visuals_error_status(&err),
-            Json(serde_json::json!({ "error": err.to_string() })),
-        )
-            .into_response(),
-    }
+) -> Result<Json<DatasetAnatomyResponse>, ApiError> {
+    let anatomy = build_dataset_anatomy(&id, &state.topology_catalog, &state.field_catalog)?;
+    Ok(Json(anatomy))
 }
 
 async fn topology_join_anatomy_handler(
     State(state): State<AppState>,
     Path(id): Path<String>,
-) -> impl IntoResponse {
-    match build_join_anatomy(&id, &state.topology_catalog) {
-        Ok(anatomy) => (
-            StatusCode::OK,
-            Json(serde_json::to_value(anatomy).unwrap_or_default()),
-        )
-            .into_response(),
-        Err(err) => (
-            map_visuals_error_status(&err),
-            Json(serde_json::json!({ "error": err.to_string() })),
-        )
-            .into_response(),
-    }
+) -> Result<Json<JoinAnatomyResponse>, ApiError> {
+    let anatomy = build_join_anatomy(&id, &state.topology_catalog)?;
+    Ok(Json(anatomy))
 }
 
 async fn topology_mermaid_handler(
     State(state): State<AppState>,
     Query(query): Query<TopologyHttpQuery>,
-) -> impl IntoResponse {
+) -> Result<Json<TopologyMermaidResponse>, ApiError> {
     let q: TopologyGraphQuery = query.into();
-    match build_topology_graph(
+    let graph = build_topology_graph(
         &state.topology_catalog,
         &state.field_catalog,
         &state.provenance_store,
         &state.config.visuals,
         &q,
     )
-    .await
-    {
-        Ok(graph) => {
-            let resp = export_topology_mermaid(graph);
-            (
-                StatusCode::OK,
-                Json(serde_json::to_value(resp).unwrap_or_default()),
-            )
-                .into_response()
-        }
-        Err(err) => (
-            map_visuals_error_status(&err),
-            Json(serde_json::json!({ "error": err.to_string() })),
-        )
-            .into_response(),
-    }
+    .await?;
+    Ok(Json(export_topology_mermaid(graph)))
 }
 
 #[cfg(test)]

@@ -16,7 +16,7 @@ use serde_json::{Value, json};
 use thiserror::Error;
 use uuid::Uuid;
 
-use crate::analytics::FieldStatisticalCatalog;
+use crate::analytics::{AnalyticsError, FieldStatisticalCatalog};
 use crate::profiler::{DatasetProfile, FieldProfile, ProfilerError, profile_parquet_dataset};
 use crate::provenance::{ProvenanceError, ProvenanceStore, TrustSummary};
 use crate::query_engine::{SemanticQueryPlan, SemanticRuleBinding, validate_query_plan};
@@ -53,6 +53,12 @@ pub enum VisualsError {
 
     #[error("visuals store lock poisoned")]
     LockPoisoned,
+
+    #[error("GraphRAG overlay error: {0}")]
+    GraphragOverlay(String),
+
+    #[error(transparent)]
+    Analytics(#[from] AnalyticsError),
 
     #[error(transparent)]
     Profiler(#[from] ProfilerError),
@@ -552,7 +558,7 @@ pub fn recommend_visuals(
     // 1. Temporal + Numeric -> Line & Area
     if let (Some(t), Some(num)) = (temporals.first(), numerics.first()) {
         let canonical_num = format!("{}.{}", profile.dataset_name, num.field_name);
-        let trait_rec = field_catalog.get(&canonical_num).ok().flatten();
+        let trait_rec = field_catalog.get(&canonical_num)?;
         let mut overlays = ProfileOverlays::default();
         if let Some(ref tr) = trait_rec {
             overlays.seasonality_period = tr.seasonality_period.clone();
@@ -607,7 +613,7 @@ pub fn recommend_visuals(
     // 2. Low-Cardinality Categorical + Numeric -> Heavy-tail promotes Box Plot above Bar
     if let (Some(cat), Some(num)) = (categoricals.first(), numerics.first()) {
         let canonical_num = format!("{}.{}", profile.dataset_name, num.field_name);
-        let trait_rec = field_catalog.get(&canonical_num).ok().flatten();
+        let trait_rec = field_catalog.get(&canonical_num)?;
         let is_heavy_tailed = trait_rec
             .as_ref()
             .map(|tr| tr.is_heavy_tailed || tr.skewness.map(|s| s.abs() > 2.0).unwrap_or(false))
