@@ -459,11 +459,15 @@ async fn fetch_graphrag_subgraph(
     dataset_ids: &[String],
     hops: u8,
     include_forbidden: bool,
-) -> Result<GraphragSubgraphResponse, String> {
+) -> Result<GraphragSubgraphResponse, VisualsError> {
     let stripped = base_url
         .trim()
         .strip_prefix("http://")
-        .ok_or_else(|| "only http:// GraphRAG URLs are supported by internal overlay client".to_string())?;
+        .ok_or_else(|| {
+            VisualsError::GraphragOverlay(
+                "only http:// GraphRAG URLs are supported by internal overlay client".to_string(),
+            )
+        })?;
     let (host_port, base_path) = match stripped.find('/') {
         Some(pos) => (&stripped[..pos], stripped[pos..].trim_end_matches('/')),
         None => (stripped, ""),
@@ -484,7 +488,7 @@ async fn fetch_graphrag_subgraph(
     let fut = async {
         let mut stream = TcpStream::connect(&addr)
             .await
-            .map_err(|e| format!("connect failed: {}", e))?;
+            .map_err(|e| VisualsError::GraphragOverlay(format!("connect failed: {}", e)))?;
         let req = format!(
             "GET {} HTTP/1.1\r\nHost: {}\r\nAccept: application/json\r\nConnection: close\r\n\r\n",
             path_and_query, host_port
@@ -492,40 +496,46 @@ async fn fetch_graphrag_subgraph(
         stream
             .write_all(req.as_bytes())
             .await
-            .map_err(|e| format!("write failed: {}", e))?;
+            .map_err(|e| VisualsError::GraphragOverlay(format!("write failed: {}", e)))?;
         let mut buf = Vec::new();
         stream
             .read_to_end(&mut buf)
             .await
-            .map_err(|e| format!("read failed: {}", e))?;
+            .map_err(|e| VisualsError::GraphragOverlay(format!("read failed: {}", e)))?;
 
         let header_end = buf
             .windows(4)
             .position(|w| w == b"\r\n\r\n")
-            .ok_or_else(|| "malformed HTTP response".to_string())?;
+            .ok_or_else(|| VisualsError::GraphragOverlay("malformed HTTP response".to_string()))?;
         let header_str = std::str::from_utf8(&buf[..header_end])
-            .map_err(|e| format!("invalid utf8 headers: {}", e))?;
+            .map_err(|e| VisualsError::GraphragOverlay(format!("invalid utf8 headers: {}", e)))?;
         let status_line = header_str.lines().next().unwrap_or("");
         if !status_line.contains(" 200 ") {
-            return Err(format!("non-200 status from Graphrag: {}", status_line));
+            return Err(VisualsError::GraphragOverlay(format!(
+                "non-200 status from Graphrag: {}",
+                status_line
+            )));
         }
         let is_chunked = header_str
             .to_ascii_lowercase()
             .contains("transfer-encoding: chunked");
         let body_slice = &buf[header_end + 4..];
         let body_bytes = if is_chunked {
-            decode_chunked_body(body_slice)
-                .ok_or_else(|| "failed to decode chunked HTTP body".to_string())?
+            decode_chunked_body(body_slice).ok_or_else(|| {
+                VisualsError::GraphragOverlay("failed to decode chunked HTTP body".to_string())
+            })?
         } else {
             body_slice.to_vec()
         };
         serde_json::from_slice::<GraphragSubgraphResponse>(&body_bytes)
-            .map_err(|e| format!("invalid Graphrag JSON: {}", e))
+            .map_err(|e| VisualsError::GraphragOverlay(format!("invalid Graphrag JSON: {}", e)))
     };
 
     tokio::time::timeout(Duration::from_secs(2), fut)
         .await
-        .map_err(|_| "Graphrag subgraph request timed out".to_string())?
+        .map_err(|_| {
+            VisualsError::GraphragOverlay("Graphrag subgraph request timed out".to_string())
+        })?
 }
 
 fn epistemic_priority(status: &str) -> u8 {
@@ -560,7 +570,7 @@ pub async fn build_topology_graph(
 
     let all_datasets = catalog.list_datasets()?;
     let all_joins = catalog.list_joins()?;
-    let all_traits = field_catalog.list().unwrap_or_default();
+    let all_traits = field_catalog.list()?;
     let trait_map: HashMap<String, LearnedFieldTrait> = all_traits
         .into_iter()
         .map(|t| (t.field_canonical_id.clone(), t))
@@ -1195,7 +1205,7 @@ pub fn build_dataset_anatomy(
     let mut schema_tree: Vec<SchemaTreeNode> = Vec::new();
     for field in &ds.profile.fields {
         let canonical = format!("{}.{}", ds.canonical_id, field.field_name);
-        let stat_trait = field_catalog.get(&canonical).ok().flatten();
+        let stat_trait = field_catalog.get(&canonical)?;
         let is_pk = ds.profile.candidate_primary_keys.contains(&field.field_name);
         let segments: Vec<&str> = field.field_name.split('.').collect();
         insert_schema_path(&mut schema_tree, &segments, "", field, is_pk, stat_trait);
